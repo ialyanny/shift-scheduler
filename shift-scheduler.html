@@ -319,11 +319,17 @@
       font-size: 13px;
       margin-top: 2px;
       display: inline-block;
+      filter: sepia(1) saturate(5) hue-rotate(-20deg);
     }
 
     .highlight-cell {
       background: linear-gradient(135deg, #ecfdf5, #d1fae5) !important;
       box-shadow: inset 0 0 0 1.5px #6ee7b7 !important;
+    }
+
+    .sport-cell {
+      background: linear-gradient(135deg, #fff7ed, #ffedd5) !important;
+      box-shadow: inset 0 0 0 1.5px #fb923c !important;
     }
 
     .note-icon {
@@ -984,6 +990,7 @@
               if (prevMyShift !== 'night' && prevBkShift !== 'night') {
                 badges += '<div class="sport-icon">🏃</div>';
                 sportCount++;
+                cellClass += ' sport-cell';
               }
             } else if (viewMode === 'me' && myShift === 'off') {
               badges = '<div class="shift-badge off">' + (mob ? '✓ 休' : '✓ 休假') + '</div>';
@@ -1000,7 +1007,7 @@
 
           if (!isOther && holidayName) {
             cellClass += ' holiday-cell';
-            badges += '<div class="holiday-icon">🎉 ' + holidayName + '</div>';
+            badges += '<div class="holiday-icon">' + holidayName + '</div>';
           }
           if (!isOther && noteText) {
             badges += '<div class="note-icon">📝 ' + escHtml(noteText.substring(0, mob ? 3 : 6)) + (noteText.length > (mob ? 3 : 6) ? '...' : '') + '</div>';
