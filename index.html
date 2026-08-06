@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>輪班班表</title>
+  <style>
+    :root {
+      --primary: #3b82f6;
+      --primary-dark: #1d4ed8;
+      --primary-light: #dbeafe;
+      --bg: #eef2f7;
+      --bg-gradient-1: #eef2ff;
+      --bg-gradient-2: #fdf2f8;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --muted: #64748b;
+      --error: #dc2626;
+      --green: #16a34a;
+      --green-light: #dcfce7;
+      --orange: #ea580c;
+      --purple: #8b5cf6;
+      --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+      --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04);
+      --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.14), 0 4px 12px rgba(15, 23, 42, 0.08);
+      --radius: 14px;
+      --radius-sm: 10px;
+      --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; }
+    body {
+      font-family: "Microsoft JhengHei", "Noto Sans TC", "PingFang TC", sans-serif;
+      background: linear-gradient(160deg, var(--bg-gradient-1) 0%, var(--bg) 45%, var(--bg-gradient-2) 100%);
+      background-attachment: fixed;
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+      line-height: 1.6;
+    }
+    .container { max-width: 1000px; margin: 0 auto; }
+
+    header {
+      text-align: center;
+      margin-bottom: 24px;
+      padding: 12px 0;
+    }
+    h1 {
+      font-size: 30px;
+      letter-spacing: 1px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--purple) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 6px;
+      display: inline-block;
+    }
+    .subtitle { font-size: 14px; color: var(--muted); }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow-md);
+      margin-bottom: 20px;
+      border: 1px solid rgba(226, 232, 240, 0.6);
+    }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .person-settings {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 18px;
+      background: #fafbfd;
+      transition: var(--transition);
+    }
+    .person-settings:hover { border-color: #c7d2fe; box-shadow: var(--shadow-sm); }
+    .person-settings h3 {
+      font-size: 16px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+    }
+    .person-settings h3 .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 0 3px rgba(0,0,0,0.06);
+    }
+    .person-settings h3 .dot-me { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+    .person-settings h3 .dot-bk { background: linear-gradient(135deg, #a78bfa, #7c3aed); }
+
+    .field { margin-bottom: 14px; }
+    .field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--muted);
+    }
+    .field input, .field select {
+      width: 100%;
+      padding: 11px 14px;
+      font-size: 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+      background: #fff;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .field input:focus, .field select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+    .field input[type="text"] {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px dashed var(--border);
+      font-size: 13px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+    }
+    .legend-box {
+      width: 22px;
+      height: 15px;
+      border-radius: 4px;
+      display: inline-block;
+    }
+    .legend-box.day { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+    .legend-box.night { background: linear-gradient(135deg, #374151, #111827); }
+    .legend-box.off { background: #fce7f3; border: 1px solid #f9a8d4; }
+    .legend-box.both-off { background: #d1fae5; border: 1px solid #6ee7b7; }
+
+    .view-toggle {
+      display: flex;
+      gap: 4px;
+      background: #f1f5f9;
+      border-radius: var(--radius-sm);
+      padding: 5px;
+      margin-bottom: 18px;
+      border: 1px solid var(--border);
+    }
+    .view-toggle button {
+      flex: 1;
+      padding: 9px 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      background: transparent;
+      color: var(--muted);
+      transition: var(--transition);
+    }
+    .view-toggle button.active {
+      background: #fff;
+      color: var(--primary);
+      box-shadow: var(--shadow-sm);
+    }
+    .view-toggle button:hover:not(.active) {
+      color: var(--text);
+      background: rgba(255,255,255,0.6);
+    }
+
+    .month-nav {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .month-nav h2 {
+      font-size: 24px;
+      font-weight: 700;
+      min-width: 170px;
+      text-align: center;
+      color: var(--text);
+      letter-spacing: 1px;
+    }
+    .nav-btn {
+      width: 44px;
+      height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      font-size: 20px;
+      cursor: pointer;
+      transition: var(--transition);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .nav-btn:hover {
+      background: var(--primary-light);
+      border-color: var(--primary);
+      color: var(--primary-dark);
+      transform: scale(1.05);
+    }
+    .nav-btn:active { transform: scale(0.95); }
+    .btn-today {
+      padding: 9px 18px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--primary);
+      transition: var(--transition);
+    }
+    .btn-today:hover {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+
+    .calendar {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 3px;
+      font-size: 13px;
+    }
+    .calendar th {
+      padding: 10px 4px;
+      font-weight: 600;
+      color: var(--muted);
+      text-align: center;
+      font-size: 13px;
+    }
+    .calendar th:first-child,
+    .calendar th:last-child { color: #f43f5e; }
+
+    .calendar td {
+      padding: 8px 6px;
+      text-align: center;
+      vertical-align: top;
+      height: 100px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: var(--transition);
+      position: relative;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    }
+    .calendar td:hover:not(.other-month) {
+      border-color: var(--primary);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-2px);
+      z-index: 1;
+    }
+    .calendar td.other-month {
+      background: transparent;
+      color: #cbd5e1;
+      cursor: default;
+      box-shadow: none;
+    }
+    .calendar td.other-month .day-num { opacity: 0.4; }
+    .calendar td.today { box-shadow: inset 0 0 0 2px var(--primary); }
+
+    .day-num {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: var(--text);
+    }
+    .calendar td.today .day-num {
+      color: var(--primary);
+    }
+    .calendar td.other-month .day-num { color: #cbd5e1; }
+
+    .shift-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      margin: 2px 0;
+      white-space: nowrap;
+      letter-spacing: 0.3px;
+    }
+    .shift-badge.day { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; }
+    .shift-badge.night { background: linear-gradient(135deg, #374151, #111827); color: #fff; }
+    .shift-badge.off { background: #fce7f3; color: #e11d48; }
+    .shift-badge.both-off {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #fff;
+      font-weight: 700;
+      padding: 4px 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      box-shadow: 0 2px 6px rgba(5, 150, 105, 0.3);
+    }
+
+    .sport-icon {
+      font-size: 13px;
+      margin-top: 2px;
+      display: inline-block;
+    }
+
+    .highlight-cell {
+      background: linear-gradient(135deg, #ecfdf5, #d1fae5) !important;
+      box-shadow: inset 0 0 0 1.5px #6ee7b7 !important;
+    }
+
+    .note-icon {
+      font-size: 10px;
+      color: #2563eb;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
+    .holiday-icon {
+      font-size: 10px;
+      color: #e11d48;
+      margin-top: 2px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+      background: #fff5f5;
+      padding: 1px 6px;
+      border-radius: 8px;
+      border: 1px solid #fecaca;
+      display: inline-block;
+      line-height: 1.5;
+    }
+
+    .holiday-cell {
+      background: linear-gradient(160deg, #fff5f5, #ffe4e6) !important;
+      border-color: #fecaca !important;
+    }
+
+    .btn-apply {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      margin-top: 16px;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: var(--transition);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+    }
+    .btn-apply:hover {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35);
+      transform: translateY(-1px);
+    }
+    .btn-apply:active { transform: translateY(0); }
+
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #1e293b;
+      color: #fff;
+      padding: 13px 28px;
+      border-radius: 12px;
+      font-size: 14px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s, transform 0.3s;
+      z-index: 100;
+      box-shadow: var(--shadow-lg);
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-top: 20px;
+    }
+    .summary-card {
+      background: linear-gradient(160deg, #ffffff, #f8fafc);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 14px;
+      text-align: center;
+      transition: var(--transition);
+    }
+    .summary-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-md);
+      border-color: #c7d2fe;
+    }
+    .summary-card .value {
+      font-size: 30px;
+      font-weight: 800;
+      color: var(--primary);
+      line-height: 1.2;
+    }
+    .summary-card .label {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+      font-weight: 500;
+    }
+
+    .help-text {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      padding: 16px;
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .modal {
+      background: #fff;
+      border-radius: 16px;
+      padding: 26px;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: var(--shadow-lg);
+      animation: slideUp 0.25s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .modal h3 {
+      font-size: 18px;
+      margin-bottom: 14px;
+      color: var(--text);
+    }
+    .modal .shift-info {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 14px;
+      padding: 10px 14px;
+      background: #f8fafc;
+      border-radius: 8px;
+      border-left: 3px solid var(--primary);
+    }
+    .modal textarea {
+      width: 100%;
+      height: 110px;
+      padding: 12px 14px;
+      font-size: 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+      resize: vertical;
+      font-family: inherit;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .modal textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+    .modal-btns {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+      justify-content: flex-end;
+    }
+    .modal-btns button {
+      padding: 9px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      transition: var(--transition);
+    }
+    .modal-btns button:hover { background: #f8fafc; }
+    .modal-btns .btn-save {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+    .modal-btns .btn-save:hover { background: var(--primary-dark); }
+    .modal-btns .btn-delete {
+      color: var(--error);
+      border-color: #fecaca;
+    }
+    .modal-btns .btn-delete:hover { background: #fef2f2; }
+
+    @media (max-width: 640px) {
+      body { padding: 16px 8px 40px; }
+      .card { padding: 18px; }
+      .calendar td { height: 78px; padding: 5px 3px; }
+      .day-num { font-size: 13px; }
+      .shift-badge { font-size: 10px; padding: 2px 6px; }
+      .month-nav h2 { font-size: 20px; min-width: 130px; }
+      .summary { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📅 輪班班表</h1>
+      <p class="subtitle">武昌 & 百凱班表合併顯示，輕鬆找出共同放假的日子</p>
+    </header>
+
+    <div class="card">
+      <div class="settings-grid">
+        <div class="person-settings">
+          <h3><span class="dot dot-me"></span>武昌班表（康寧 D 組）</h3>
+          <div class="field">
+            <label>輪班規則</label>
+            <input type="text" id="myPattern" placeholder="例如: 11100110002200222002200011001110020022200220001100">
+            <div class="help-text">0=休假, 1=大夜, 2=白班</div>
+          </div>
+          <div class="field">
+            <label>週期起始日</label>
+            <input type="date" id="myStartDate">
+          </div>
+        </div>
+
+        <div class="person-settings">
+          <h3><span class="dot dot-bk"></span>百凱班表（聯亞氣體）</h3>
+          <div class="field">
+            <label>輪班規則</label>
+            <input type="text" id="bkPattern" placeholder="例如: 11001100110011002200220022002200">
+            <div class="help-text">0=休假, 1=大夜, 2=白班</div>
+          </div>
+          <div class="field">
+            <label>週期起始日</label>
+            <input type="date" id="bkStartDate">
+          </div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item"><span class="legend-box night"></span> 大夜</div>
+        <div class="legend-item"><span class="legend-box day"></span> 白班</div>
+        <div class="legend-item"><span class="legend-box off"></span> 單人休假</div>
+        <div class="legend-item"><span class="legend-box both-off"></span> 兩人都休假</div>
+      </div>
+
+      <button type="button" class="btn-apply" id="btnApply">✓ 套用設定並更新班表</button>
+    </div>
+
+    <div class="card">
+      <div class="view-toggle" id="viewToggle">
+        <button type="button" class="active" data-view="both">兩人都顯示</button>
+        <button type="button" data-view="me">只顯示武昌</button>
+        <button type="button" data-view="bk">只顯示百凱</button>
+      </div>
+
+      <div class="month-nav">
+        <button type="button" class="nav-btn" id="btnPrev">◀</button>
+        <h2 id="monthTitle">2026 年 8 月</h2>
+        <button type="button" class="nav-btn" id="btnNext">▶</button>
+        <button type="button" class="btn-today" id="btnToday">今天</button>
+      </div>
+
+      <table class="calendar">
+        <thead>
+          <tr>
+            <th>日</th>
+            <th>一</th>
+            <th>二</th>
+            <th>三</th>
+            <th>四</th>
+            <th>五</th>
+            <th>六</th>
+          </tr>
+        </thead>
+        <tbody id="calendarBody"></tbody>
+      </table>
+
+      <div class="summary" id="summaryBox"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <div id="modalContainer"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    (function() {
+      var SUPABASE_URL = 'https://nutkocotbncqxgvjkfxi.supabase.co';
+      var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51dGtvY290Ym5jcXhndmprZnhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NTcwMjcsImV4cCI6MjEwMTQzMzAyN30.yfvXV2dvYhS8cTLgyir-ddaVb5oqbYIDyjngINVccfE';
+      var CACHE_KEY = 'shift_sync_cache_v1';
+
+      var STORAGE_KEY = 'shift_scheduler_data_v2';
+      var NOTES_KEY = 'shift_scheduler_notes';
+      var VIEW_KEY = 'shift_scheduler_view';
+      var currentYear, currentMonth;
+      var viewMode = loadView();
+
+      var sb = null;
+      var syncTimer = 0;
+      var started = false;
+
+      var defaultData = {
+        myPattern: '11100110002200222002200011001110020022200220001100',
+        myStartDate: '2021-10-01',
+        bkPattern: '11001100110011002200220022002200',
+        bkStartDate: '2026-06-08'
+      };
+
+      var holidays = {
+        '1-1': '元旦',
+        '2-28': '和平紀念日',
+        '4-3': '兒童節',
+        '4-4': '清明節',
+        '5-1': '勞動節',
+        '10-10': '國慶日',
+        '10-25': '台灣光復節',
+        '12-25': '行憲紀念日'
+      };
+
+      var lunarHolidays = {
+        '2026-2-16': '除夕',
+        '2026-2-17': '春節',
+        '2026-2-18': '春節初二',
+        '2026-2-19': '春節初三',
+        '2026-2-20': '春節彈性假',
+        '2026-2-27': '和平紀念日彈性假',
+        '2026-3-1': '和平紀念日補假',
+        '2026-5-1': '勞動節連假',
+        '2026-5-2': '勞動節連假',
+        '2026-5-3': '勞動節連假',
+        '2026-6-19': '端午節',
+        '2026-6-20': '端午節連假',
+        '2026-6-21': '端午節連假',
+        '2026-9-25': '中秋節',
+        '2026-9-26': '中秋連假',
+        '2026-9-27': '中秋連假',
+        '2026-9-28': '教師節',
+        '2026-10-11': '國慶連假',
+        '2026-10-26': '光復節補假'
+      };
+
+      var data = loadData();
+      var notes = loadNotes();
+      var now = new Date();
+      currentYear = now.getFullYear();
+      currentMonth = now.getMonth();
+
+      function $(id) { return document.getElementById(id); }
+
+      function loadData() {
+        try {
+          var raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) return JSON.parse(raw);
+        } catch(e) {}
+        return Object.assign({}, defaultData);
+      }
+
+      function saveData() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        } catch(e) {}
+      }
+
+      function loadNotes() {
+        try {
+          var raw = localStorage.getItem(NOTES_KEY);
+          if (raw) return JSON.parse(raw);
+        } catch(e) {}
+        return {};
+      }
+
+      function saveNotes() {
+        try {
+          localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+        } catch(e) {}
+      }
+
+      function loadView() {
+        try {
+          var raw = localStorage.getItem(VIEW_KEY);
+          if (raw) return raw;
+        } catch(e) {}
+        return 'both';
+      }
+
+      function saveView() {
+        try {
+          localStorage.setItem(VIEW_KEY, viewMode);
+        } catch(e) {}
+      }
+
+      // ===== Supabase 雲端同步 =====
+      function makeOfflineSb() {
+        var q = {
+          select: function () { return q; },
+          upsert: function () { return Promise.resolve({ error: { message: '離線', data: [] } }); },
+          eq: function () { return q; },
+          then: function (a, b) { return Promise.resolve({ error: { message: '離線', data: [] } }).then(a, b); }
+        };
+        return { from: function () { return q; } };
+      }
+
+      function fetchAll() {
+        return Promise.all([
+          sb.from('shift_config').select('id, pattern, start_date'),
+          sb.from('shift_notes').select('date_key, note, updated_at')
+        ]).then(function (res) {
+          if (res[0].error) throw res[0].error;
+          if (res[1].error) throw res[1].error;
+          var configs = res[0].data || [];
+          var notesRows = res[1].data || [];
+          var cfg = {};
+          configs.forEach(function (r) { cfg[r.id] = { pattern: r.pattern || '', startDate: r.start_date || '' }; });
+          var map = {};
+          notesRows.forEach(function (r) { if (r.note) map[r.date_key] = r.note; });
+          return { cfg: cfg, notes: map };
+        });
+      }
+
+      function applyData(d) {
+        var cfg = d.cfg;
+        if (cfg.me && cfg.me.pattern) { data.myPattern = cfg.me.pattern; data.myStartDate = cfg.me.startDate; }
+        if (cfg.bk && cfg.bk.pattern) { data.bkPattern = cfg.bk.pattern; data.bkStartDate = cfg.bk.startDate; }
+        notes = d.notes;
+        saveData();
+        saveNotes();
+        loadForm();
+        renderCalendar();
+      }
+
+      function loadShared() {
+        if (typeof supabase === 'undefined') {
+          sb = makeOfflineSb();
+          return;
+        }
+        sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        fetchAll().then(applyData).catch(function () {
+          sb = null;
+          sb = makeOfflineSb();
+        });
+      }
+
+      function persistConfig() {
+        if (!sb) return;
+        var rows = [
+          { id: 'me', pattern: data.myPattern, start_date: data.myStartDate },
+          { id: 'bk', pattern: data.bkPattern, start_date: data.bkStartDate }
+        ];
+        sb.from('shift_config').upsert(rows, { onConflict: 'id' }).then(function (res) {
+          if (res.error) showToast('同步失敗：' + res.error.message);
+        }).catch(function () { showToast('同步失敗'); });
+      }
+
+      function persistNotes() {
+        if (!sb) return;
+        var rows = Object.keys(notes).map(function (k) {
+          return { date_key: k, note: notes[k], updated_at: Date.now() };
+        });
+        sb.from('shift_notes').upsert(rows, { onConflict: 'date_key' }).then(function (res) {
+          if (res.error) showToast('備註同步失敗');
+        }).catch(function () { showToast('備註同步失敗'); });
+      }
+
+      function subscribe() {
+        if (!sb || !sb.channel) return;
+        var channel = sb.channel('shift-sync');
+        channel
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'shift_config' }, function () { refreshQuiet(); })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'shift_notes' }, function () { refreshQuiet(); })
+          .subscribe();
+        setInterval(function () { refreshQuiet(); }, 15000);
+      }
+
+      function refreshQuiet() {
+        if (!sb) return;
+        clearTimeout(syncTimer);
+        syncTimer = setTimeout(function () {
+          fetchAll().then(applyData).catch(function () {});
+        }, 300);
+      }
+
+      function startApp() {
+        if (started) return;
+        started = true;
+        loadShared();
+        subscribe();
+      }
+
+      function showToast(msg) {
+        var t = $('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        clearTimeout(showToast._t);
+        showToast._t = setTimeout(function() { t.classList.remove('show'); }, 2000);
+      }
+
+      function parseDate(str) {
+        var parts = str.split('-');
+        return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      }
+
+      function getShift(pattern, startDate, year, month, day) {
+        if (!pattern || !startDate) return null;
+        var start = parseDate(startDate);
+        var target = new Date(year, month, day);
+        var diffTime = target.getTime() - start.getTime();
+        var diff = Math.floor(diffTime / (24 * 60 * 60 * 1000));
+        if (diff < 0) return null;
+        var idx = diff % pattern.length;
+        var code = pattern[idx];
+        if (code === '0') return 'off';
+        if (code === '1') return 'night';
+        if (code === '2') return 'day';
+        return null;
+      }
+
+      function shiftLabel(shift) {
+        if (shift === 'day') return '白班';
+        if (shift === 'night') return '大夜';
+        if (shift === 'off') return '休假';
+        return '';
+      }
+
+      function dateKey(y, m, d) {
+        return y + '-' + (m + 1) + '-' + d;
+      }
+
+      function renderCalendar() {
+        $('monthTitle').textContent = currentYear + ' 年 ' + (currentMonth + 1) + ' 月';
+
+        var firstDay = new Date(currentYear, currentMonth, 1).getDay();
+        var daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+        var daysInPrev = new Date(currentYear, currentMonth, 0).getDate();
+
+        var today = new Date();
+
+        var html = '';
+        var day = 1;
+        var nextDay = 1;
+
+        var totalDays = daysInMonth;
+        var totalCells = Math.ceil((firstDay + totalDays) / 7) * 7;
+
+        var myOffCount = 0, bkOffCount = 0, bothOffCount = 0, sportCount = 0;
+
+        for (var i = 0; i < totalCells; i++) {
+          if (i % 7 === 0) html += '<tr>';
+
+          var displayDay, displayMonth, displayYear, isOther;
+
+          if (i < firstDay) {
+            displayDay = daysInPrev - firstDay + i + 1;
+            displayMonth = currentMonth - 1;
+            displayYear = currentYear;
+            if (displayMonth < 0) { displayMonth = 11; displayYear--; }
+            isOther = true;
+          } else if (i >= firstDay + totalDays) {
+            displayDay = nextDay++;
+            displayMonth = currentMonth + 1;
+            displayYear = currentYear;
+            if (displayMonth > 11) { displayMonth = 0; displayYear++; }
+            isOther = true;
+          } else {
+            displayDay = day++;
+            displayMonth = currentMonth;
+            displayYear = currentYear;
+            isOther = false;
+          }
+
+          var isToday = (displayYear === today.getFullYear() && displayMonth === today.getMonth() && displayDay === today.getDate());
+
+          var myShift = getShift(data.myPattern, data.myStartDate, displayYear, displayMonth, displayDay);
+          var bkShift = getShift(data.bkPattern, data.bkStartDate, displayYear, displayMonth, displayDay);
+
+          if (!isOther) {
+            if (myShift === 'off') myOffCount++;
+            if (bkShift === 'off') bkOffCount++;
+            if (myShift === 'off' && bkShift === 'off') bothOffCount++;
+          }
+
+          var cellClass = isOther ? 'other-month' : '';
+          if (isToday) cellClass += ' today';
+          if (!isOther && viewMode === 'both' && myShift === 'off' && bkShift === 'off') cellClass += ' highlight-cell';
+          if (!isOther && viewMode === 'me' && myShift === 'off') cellClass += ' highlight-cell';
+          if (!isOther && viewMode === 'bk' && bkShift === 'off') cellClass += ' highlight-cell';
+
+          var badges = '';
+
+          if (!isOther) {
+            if (viewMode !== 'bk' && myShift) {
+              badges += '<div class="shift-badge ' + myShift + '">武昌: ' + shiftLabel(myShift) + '</div>';
+            }
+            if (viewMode !== 'me' && bkShift) {
+              badges += '<div class="shift-badge ' + bkShift + '">百凱: ' + shiftLabel(bkShift) + '</div>';
+            }
+
+            if (viewMode === 'both' && myShift === 'off' && bkShift === 'off') {
+              var prevMyShift = getShift(data.myPattern, data.myStartDate, displayYear, displayMonth, displayDay - 1);
+              var prevBkShift = getShift(data.bkPattern, data.bkStartDate, displayYear, displayMonth, displayDay - 1);
+              badges = '<div class="shift-badge both-off">✓ 兩人都休假</div>';
+              if (prevMyShift !== 'night' && prevBkShift !== 'night') {
+                badges += '<div class="sport-icon">🏃</div>';
+                sportCount++;
+              }
+            } else if (viewMode === 'me' && myShift === 'off') {
+              badges = '<div class="shift-badge off">✓ 休假</div>';
+            } else if (viewMode === 'bk' && bkShift === 'off') {
+              badges = '<div class="shift-badge off">✓ 休假</div>';
+            }
+          }
+
+          var dk = dateKey(displayYear, displayMonth, displayDay);
+          var noteText = notes[dk];
+          var holidayKey = (displayMonth + 1) + '-' + displayDay;
+          var lunarKey = displayYear + '-' + (displayMonth + 1) + '-' + displayDay;
+          var holidayName = holidays[holidayKey] || lunarHolidays[lunarKey];
+
+          if (!isOther && holidayName) {
+            cellClass += ' holiday-cell';
+            badges += '<div class="holiday-icon">🎉 ' + holidayName + '</div>';
+          }
+          if (!isOther && noteText) {
+            badges += '<div class="note-icon">📝 ' + escHtml(noteText.substring(0, 6)) + (noteText.length > 6 ? '...' : '') + '</div>';
+          }
+
+          html += '<td class="' + cellClass + '"' + (!isOther ? ' data-date="' + dk + '"' : '') + '>';
+          html += '<div class="day-num">' + displayDay + '</div>';
+          html += badges;
+          html += '</td>';
+
+          if (i % 7 === 6) html += '</tr>';
+        }
+
+        $('calendarBody').innerHTML = html;
+
+        var summaryHtml = '';
+        if (viewMode === 'both') {
+          summaryHtml =
+            '<div class="summary-card"><div class="value">' + myOffCount + '</div><div class="label">武昌休假天數</div></div>' +
+            '<div class="summary-card"><div class="value">' + bkOffCount + '</div><div class="label">百凱休假天數</div></div>' +
+            '<div class="summary-card"><div class="value" style="color:#16a34a">' + bothOffCount + '</div><div class="label">共同休假天數</div></div>' +
+            '<div class="summary-card"><div class="value" style="color:#ea580c">' + sportCount + '</div><div class="label">🏃 運動天數</div></div>';
+        } else if (viewMode === 'me') {
+          summaryHtml =
+            '<div class="summary-card"><div class="value">' + myOffCount + '</div><div class="label">武昌休假天數</div></div>';
+        } else {
+          summaryHtml =
+            '<div class="summary-card"><div class="value">' + bkOffCount + '</div><div class="label">百凱休假天數</div></div>';
+        }
+        $('summaryBox').innerHTML = summaryHtml;
+
+        $('calendarBody').querySelectorAll('td[data-date]').forEach(function(td) {
+          td.addEventListener('click', function() {
+            openNoteModal(td.dataset.date);
+          });
+        });
+      }
+
+      function escHtml(s) {
+        var d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+      }
+
+      function openNoteModal(dk) {
+        var existing = notes[dk] || '';
+        var parts = dk.split('-');
+        var y = parseInt(parts[0]);
+        var m = parseInt(parts[1]) - 1;
+        var d = parseInt(parts[2]);
+        var myShift = getShift(data.myPattern, data.myStartDate, y, m, d);
+        var bkShift = getShift(data.bkPattern, data.bkStartDate, y, m, d);
+
+        var shiftInfo = '武昌: ' + shiftLabel(myShift) + ' ｜ 百凱: ' + shiftLabel(bkShift);
+        if (myShift === 'off' && bkShift === 'off') {
+          shiftInfo += '  ★ 共同休假';
+        }
+
+        var holidayKey = (m + 1) + '-' + d;
+        var lunarKey = y + '-' + (m + 1) + '-' + d;
+        var holidayName = holidays[holidayKey] || lunarHolidays[lunarKey];
+        if (holidayName) {
+          shiftInfo += '<br>🎉 假日：' + holidayName;
+        }
+
+        var html = '<div class="modal-overlay" id="noteModal">' +
+          '<div class="modal">' +
+          '<h3>' + y + ' 年 ' + (m + 1) + ' 月 ' + d + ' 日</h3>' +
+          '<div class="shift-info">' + shiftInfo + '</div>' +
+          '<textarea id="noteInput" placeholder="輸入備註事項...">' + escHtml(existing) + '</textarea>' +
+          '<div class="modal-btns">' +
+          (existing ? '<button type="button" class="btn-delete" id="btnDelNote">刪除</button>' : '') +
+          '<button type="button" id="btnCancelNote">取消</button>' +
+          '<button type="button" class="btn-save" id="btnSaveNote">儲存</button>' +
+          '</div>' +
+          '</div>' +
+          '</div>';
+
+        $('modalContainer').innerHTML = html;
+
+        $('btnCancelNote').addEventListener('click', closeModal);
+        $('btnSaveNote').addEventListener('click', function() {
+          var val = $('noteInput').value.trim();
+          if (val) {
+            notes[dk] = val;
+          } else {
+            delete notes[dk];
+          }
+          saveNotes();
+          persistNotes();
+          closeModal();
+          renderCalendar();
+          showToast('已儲存備註');
+        });
+
+        if ($('btnDelNote')) {
+          $('btnDelNote').addEventListener('click', function() {
+            delete notes[dk];
+            saveNotes();
+            persistNotes();
+            closeModal();
+            renderCalendar();
+            showToast('已刪除備註');
+          });
+        }
+
+        $('noteModal').addEventListener('click', function(e) {
+          if (e.target === $('noteModal')) closeModal();
+        });
+
+        $('noteInput').focus();
+      }
+
+      function closeModal() {
+        $('modalContainer').innerHTML = '';
+      }
+
+      function applySettings() {
+        data.myPattern = $('myPattern').value.trim();
+        data.myStartDate = $('myStartDate').value;
+        data.bkPattern = $('bkPattern').value.trim();
+        data.bkStartDate = $('bkStartDate').value;
+        saveData();
+        persistConfig();
+        renderCalendar();
+        showToast('已更新班表');
+      }
+
+      function loadForm() {
+        $('myPattern').value = data.myPattern || '';
+        $('myStartDate').value = data.myStartDate || '';
+        $('bkPattern').value = data.bkPattern || '';
+        $('bkStartDate').value = data.bkStartDate || '';
+      }
+
+      $('btnApply').addEventListener('click', applySettings);
+
+      $('btnPrev').addEventListener('click', function() {
+        currentMonth--;
+        if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+        renderCalendar();
+      });
+
+      $('btnNext').addEventListener('click', function() {
+        currentMonth++;
+        if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+        renderCalendar();
+      });
+
+      $('btnToday').addEventListener('click', function() {
+        var now = new Date();
+        currentYear = now.getFullYear();
+        currentMonth = now.getMonth();
+        renderCalendar();
+      });
+
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'ArrowLeft') {
+          $('btnPrev').click();
+        } else if (e.key === 'ArrowRight') {
+          $('btnNext').click();
+        }
+      });
+
+      $('viewToggle').querySelectorAll('button').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          viewMode = btn.dataset.view;
+          saveView();
+          $('viewToggle').querySelectorAll('button').forEach(function(b) {
+            b.classList.toggle('active', b === btn);
+          });
+          renderCalendar();
+        });
+      });
+
+      function initViewToggle() {
+        $('viewToggle').querySelectorAll('button').forEach(function(btn) {
+          btn.classList.toggle('active', btn.dataset.view === viewMode);
+        });
+      }
+
+      loadForm();
+      initViewToggle();
+      renderCalendar();
+      startApp();
+    })();
+  </script>
+</body>
+</html>
