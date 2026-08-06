@@ -534,9 +534,12 @@
     @media (max-width: 640px) {
       body { padding: 16px 8px 40px; }
       .card { padding: 18px; }
-      .calendar td { height: 78px; padding: 5px 3px; }
+      .container { max-width: 100%; }
+      .calendar { border-spacing: 2px; }
+      .calendar td { height: 82px; padding: 5px 2px; overflow: hidden; word-break: break-word; }
       .day-num { font-size: 13px; }
-      .shift-badge { font-size: 10px; padding: 2px 6px; }
+      .shift-badge { font-size: 10px; padding: 2px 5px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .holiday-icon, .note-icon { font-size: 9px; padding: 1px 4px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .month-nav h2 { font-size: 20px; min-width: 130px; }
       .summary { grid-template-columns: repeat(2, 1fr); }
     }
@@ -856,6 +859,17 @@
         return null;
       }
 
+      function isMobile() {
+        return window.innerWidth <= 640;
+      }
+
+      function shortShiftLabel(shift) {
+        if (shift === 'day') return '白';
+        if (shift === 'night') return '夜';
+        if (shift === 'off') return '休';
+        return '';
+      }
+
       function shiftLabel(shift) {
         if (shift === 'day') return '白班';
         if (shift === 'night') return '大夜';
@@ -927,27 +941,28 @@
           if (!isOther && viewMode === 'bk' && bkShift === 'off') cellClass += ' highlight-cell';
 
           var badges = '';
+          var mob = isMobile();
 
           if (!isOther) {
             if (viewMode !== 'bk' && myShift) {
-              badges += '<div class="shift-badge ' + myShift + '">武昌: ' + shiftLabel(myShift) + '</div>';
+              badges += '<div class="shift-badge ' + myShift + '">' + (mob ? '武 ' : '武昌: ') + (mob ? shortShiftLabel(myShift) : shiftLabel(myShift)) + '</div>';
             }
             if (viewMode !== 'me' && bkShift) {
-              badges += '<div class="shift-badge ' + bkShift + '">百凱: ' + shiftLabel(bkShift) + '</div>';
+              badges += '<div class="shift-badge ' + bkShift + '">' + (mob ? '百 ' : '百凱: ') + (mob ? shortShiftLabel(bkShift) : shiftLabel(bkShift)) + '</div>';
             }
 
             if (viewMode === 'both' && myShift === 'off' && bkShift === 'off') {
               var prevMyShift = getShift(data.myPattern, data.myStartDate, displayYear, displayMonth, displayDay - 1);
               var prevBkShift = getShift(data.bkPattern, data.bkStartDate, displayYear, displayMonth, displayDay - 1);
-              badges = '<div class="shift-badge both-off">✓ 兩人都休假</div>';
+              badges = '<div class="shift-badge both-off">' + (mob ? '✓ 同休' : '✓ 兩人都休假') + '</div>';
               if (prevMyShift !== 'night' && prevBkShift !== 'night') {
                 badges += '<div class="sport-icon">🏃</div>';
                 sportCount++;
               }
             } else if (viewMode === 'me' && myShift === 'off') {
-              badges = '<div class="shift-badge off">✓ 休假</div>';
+              badges = '<div class="shift-badge off">' + (mob ? '✓ 休' : '✓ 休假') + '</div>';
             } else if (viewMode === 'bk' && bkShift === 'off') {
-              badges = '<div class="shift-badge off">✓ 休假</div>';
+              badges = '<div class="shift-badge off">' + (mob ? '✓ 休' : '✓ 休假') + '</div>';
             }
           }
 
@@ -962,7 +977,7 @@
             badges += '<div class="holiday-icon">🎉 ' + holidayName + '</div>';
           }
           if (!isOther && noteText) {
-            badges += '<div class="note-icon">📝 ' + escHtml(noteText.substring(0, 6)) + (noteText.length > 6 ? '...' : '') + '</div>';
+            badges += '<div class="note-icon">📝 ' + escHtml(noteText.substring(0, mob ? 3 : 6)) + (noteText.length > (mob ? 3 : 6) ? '...' : '') + '</div>';
           }
 
           html += '<td class="' + cellClass + '"' + (!isOther ? ' data-date="' + dk + '"' : '') + '>';
