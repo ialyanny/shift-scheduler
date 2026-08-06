@@ -381,6 +381,27 @@
     }
     .btn-apply:active { transform: translateY(0); }
 
+    .btn-toggle {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin-top: 12px;
+      background: #fff;
+      color: var(--muted);
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .btn-toggle:hover {
+      color: var(--primary);
+      border-color: var(--primary);
+      background: var(--primary-light);
+    }
+    .pattern-field.hidden { display: none; }
+
     .toast {
       position: fixed;
       bottom: 28px;
@@ -557,37 +578,38 @@
         <div class="person-settings">
           <h3><span class="dot dot-me"></span>武昌班表（康寧 D 組）</h3>
           <div class="field">
-            <label>輪班規則</label>
-            <input type="text" id="myPattern" placeholder="例如: 11100110002200222002200011001110020022200220001100">
-            <div class="help-text">0=休假, 1=大夜, 2=白班</div>
-          </div>
-          <div class="field">
             <label>週期起始日</label>
             <input type="date" id="myStartDate">
+          </div>
+          <div class="field pattern-field hidden" id="myPatternField">
+            <label>輪班規則</label>
+            <input type="text" id="myPattern" placeholder="例如: 11100110002200222002200011001110020022200220001100">
+            <div class="help-text">0=休假, 1=夜班, 2=日班</div>
           </div>
         </div>
 
         <div class="person-settings">
           <h3><span class="dot dot-bk"></span>百凱班表（聯亞氣體）</h3>
           <div class="field">
-            <label>輪班規則</label>
-            <input type="text" id="bkPattern" placeholder="例如: 11001100110011002200220022002200">
-            <div class="help-text">0=休假, 1=大夜, 2=白班</div>
-          </div>
-          <div class="field">
             <label>週期起始日</label>
             <input type="date" id="bkStartDate">
+          </div>
+          <div class="field pattern-field hidden" id="bkPatternField">
+            <label>輪班規則</label>
+            <input type="text" id="bkPattern" placeholder="例如: 11001100110011002200220022002200">
+            <div class="help-text">0=休假, 1=夜班, 2=日班</div>
           </div>
         </div>
       </div>
 
       <div class="legend">
-        <div class="legend-item"><span class="legend-box night"></span> 大夜</div>
-        <div class="legend-item"><span class="legend-box day"></span> 白班</div>
+        <div class="legend-item"><span class="legend-box night"></span> 夜班</div>
+        <div class="legend-item"><span class="legend-box day"></span> 日班</div>
         <div class="legend-item"><span class="legend-box off"></span> 單人休假</div>
         <div class="legend-item"><span class="legend-box both-off"></span> 兩人都休假</div>
       </div>
 
+      <button type="button" class="btn-toggle" id="btnTogglePattern">⚙️ 顯示輪班規則</button>
       <button type="button" class="btn-apply" id="btnApply">✓ 套用設定並更新班表</button>
     </div>
 
@@ -871,8 +893,8 @@
       }
 
       function shiftLabel(shift) {
-        if (shift === 'day') return '白班';
-        if (shift === 'night') return '大夜';
+        if (shift === 'day') return '日班';
+        if (shift === 'night') return '夜班';
         if (shift === 'off') return '休假';
         return '';
       }
@@ -1111,6 +1133,14 @@
       }
 
       $('btnApply').addEventListener('click', applySettings);
+
+      $('btnTogglePattern').addEventListener('click', function() {
+        var fields = document.querySelectorAll('.pattern-field');
+        var anyHidden = false;
+        fields.forEach(function(f) { if (f.classList.contains('hidden')) anyHidden = true; });
+        fields.forEach(function(f) { f.classList.toggle('hidden', !anyHidden); });
+        this.textContent = anyHidden ? '⚙️ 隱藏輪班規則' : '⚙️ 顯示輪班規則';
+      });
 
       $('btnPrev').addEventListener('click', function() {
         currentMonth--;
