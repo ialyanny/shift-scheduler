@@ -562,8 +562,8 @@
       body { padding: 16px 8px 40px; }
       .card { padding: 18px; }
       .container { max-width: 100%; }
-      .calendar { border-spacing: 2px; }
-      .calendar td { height: 82px; padding: 5px 2px; overflow: hidden; word-break: break-word; }
+      .calendar { border-spacing: 2px; table-layout: fixed; width: 100%; }
+      .calendar td { height: 82px; max-height: 82px; min-height: 82px; padding: 5px 2px; overflow: hidden; word-break: break-word; }
       .day-num { font-size: 13px; }
       .shift-badge { font-size: 10px; padding: 2px 5px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .holiday-icon, .note-icon { font-size: 9px; padding: 1px 4px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
