@@ -301,12 +301,13 @@
     .calendar td.other-month .day-num { color: #94a3b8; background: #f1f5f9; }
 
     .shift-badge {
-      display: inline-block;
+      display: block;
+      width: fit-content;
+      margin: 2px auto;
       padding: 3px 8px;
       border-radius: 20px;
       font-size: 11px;
       font-weight: 600;
-      margin: 2px 0;
       white-space: nowrap;
       letter-spacing: 0.3px;
     }
@@ -318,16 +319,18 @@
       color: #fff;
       font-weight: 700;
       padding: 4px 10px;
-      display: inline-flex;
+      display: flex;
       align-items: center;
+      justify-content: center;
       gap: 4px;
       box-shadow: 0 2px 6px rgba(5, 150, 105, 0.3);
     }
 
     .sport-icon {
       font-size: 13px;
-      margin-top: 2px;
-      display: inline-block;
+      margin: 2px auto 0;
+      display: block;
+      width: fit-content;
       filter: sepia(1) saturate(5) hue-rotate(-20deg);
     }
 
@@ -344,7 +347,9 @@
     .note-icon {
       font-size: 10px;
       color: #2563eb;
-      margin-top: 2px;
+      margin: 2px auto 0;
+      display: block;
+      width: fit-content;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -354,7 +359,7 @@
     .holiday-icon {
       font-size: 10px;
       color: #e11d48;
-      margin-top: 2px;
+      margin: 2px auto 0;
       font-weight: 600;
       white-space: nowrap;
       overflow: hidden;
@@ -364,7 +369,8 @@
       padding: 1px 6px;
       border-radius: 8px;
       border: 1px solid #fecaca;
-      display: inline-block;
+      display: block;
+      width: fit-content;
       line-height: 1.5;
     }
 
@@ -574,8 +580,8 @@
       .calendar { border-spacing: 2px; table-layout: fixed; width: 100%; }
       .calendar td { height: 90px; padding: 4px 2px; overflow: hidden; text-align: center; vertical-align: top; }
       .day-num { width: 22px; height: 22px; line-height: 22px; font-size: 12px; margin: 0 auto 3px; }
-      .shift-badge { font-size: 10px; padding: 2px 4px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; margin: 1px 0; }
-      .holiday-icon, .note-icon { font-size: 9px; padding: 1px 4px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; margin: 1px 0; }
+      .shift-badge { font-size: 10px; padding: 2px 4px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; width: fit-content; margin: 1px auto; }
+      .holiday-icon, .note-icon { font-size: 9px; padding: 1px 4px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; width: fit-content; margin: 1px auto; }
       .month-nav h2 { font-size: 20px; min-width: 130px; }
       .summary { grid-template-columns: repeat(2, 1fr); }
     }
