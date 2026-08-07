@@ -281,19 +281,17 @@
     .calendar td.today { box-shadow: inset 0 0 0 2px var(--primary); }
 
     .day-num {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
+      display: inline-block;
+      text-align: center;
       width: 24px;
       height: 24px;
+      line-height: 24px;
       font-size: 13px;
       font-weight: 700;
       color: #475569;
       background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
       border-radius: 50%;
       margin: 0 auto 4px;
-      line-height: 1;
-      flex-shrink: 0;
     }
     .calendar td.today .day-num {
       color: #fff;
@@ -575,7 +573,7 @@
       .container { max-width: 100%; }
       .calendar { border-spacing: 2px; table-layout: fixed; width: 100%; }
       .calendar td { height: 90px; padding: 4px 2px; overflow: hidden; text-align: center; vertical-align: top; }
-      .day-num { width: 22px; height: 22px; font-size: 12px; margin: 0 auto 3px; }
+      .day-num { width: 22px; height: 22px; line-height: 22px; font-size: 12px; margin: 0 auto 3px; }
       .shift-badge { font-size: 10px; padding: 2px 4px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; margin: 1px 0; }
       .holiday-icon, .note-icon { font-size: 9px; padding: 1px 4px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; margin: 1px 0; }
       .month-nav h2 { font-size: 20px; min-width: 130px; }
