@@ -1,0 +1,24 @@
+{
+  "name": "武昌百凱輪班表",
+  "short_name": "輪班表",
+  "description": "武昌 & 百凱班表合併顯示，輕鬆找出共同放假的日子",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eef2f7",
+  "theme_color": "#3b82f6",
+  "lang": "zh-Hant",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
