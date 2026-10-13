@@ -184,90 +184,6 @@
       border: 1px solid #fecaca;
     }
     .btn-user-del:hover { background: #fef2f2; }
-    .hidden { display: none !important; }
-
-    .privacy-box {
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 14px 16px;
-      background: #fafbfd;
-      margin-bottom: 16px;
-    }
-    .privacy-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      padding: 6px 0;
-      font-size: 14px;
-    }
-    .privacy-row + .privacy-row { border-top: 1px dashed var(--border); }
-    .privacy-row .grow { flex: 1; min-width: 140px; }
-    .privacy-row .hint { font-size: 12px; color: var(--muted); flex-basis: 100%; }
-    .switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
-    .switch input { opacity: 0; width: 0; height: 0; }
-    .slider {
-      position: absolute; inset: 0; cursor: pointer;
-      background: #cbd5e1; border-radius: 24px; transition: var(--transition);
-    }
-    .slider:before {
-      position: absolute; content: ""; height: 18px; width: 18px;
-      left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: var(--transition);
-    }
-    .switch input:checked + .slider { background: var(--primary); }
-    .switch input:checked + .slider:before { transform: translateX(20px); }
-    .btn-small {
-      padding: 8px 14px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: var(--transition);
-      background: #fff;
-      border: 1px solid var(--border);
-      color: var(--text);
-      white-space: nowrap;
-    }
-    .btn-small:hover { border-color: var(--primary); color: var(--primary); }
-    .btn-small.danger { color: var(--error); border-color: #fecaca; }
-    .btn-small.danger:hover { background: #fef2f2; }
-
-    .member-bar {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 16px;
-      font-size: 13px;
-    }
-    .member-label { font-weight: 700; color: var(--muted); white-space: nowrap; }
-    .member-chip {
-      padding: 7px 13px;
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      background: #f1f5f9;
-      border: 1px solid var(--border);
-      color: var(--text);
-      transition: var(--transition);
-    }
-    .member-chip:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
-    .member-empty { color: var(--muted); font-size: 12px; }
-
-    .view-banner {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      background: linear-gradient(135deg, #e0e7ff, #ede9fe);
-      border: 1px solid #c7d2fe;
-      border-radius: var(--radius-sm);
-      padding: 10px 14px;
-      font-size: 13px;
-      margin-bottom: 16px;
-    }
-    .view-banner .grow { flex: 1; min-width: 160px; }
 
     .legend {
       display: flex;
@@ -777,33 +693,12 @@
       <p class="subtitle" id="appSubtitle">武昌 & 百凱班表合併顯示，輕鬆找出共同放假的日子</p>
     </header>
 
-    <div class="card" id="settingsCard">
+    <div class="card">
       <div class="user-bar">
         <label>使用者</label>
         <select id="userSelect"></select>
         <button type="button" class="btn-user-add" id="btnAddUser">＋ 新增</button>
         <button type="button" class="btn-user-del" id="btnDelUser">刪除</button>
-      </div>
-
-      <div class="member-bar" id="memberBar">
-        <span class="member-label">👥 群組成員</span>
-        <span id="memberChips"><span class="member-empty">載入中…</span></span>
-      </div>
-
-      <div class="privacy-box">
-        <div class="privacy-row">
-          <span>👁️ 群組可見</span>
-          <span class="grow"></span>
-          <label class="switch"><input type="checkbox" id="visibleToggle" checked><span class="slider"></span></label>
-          <span class="hint">關閉後，你不會出現在別人的成員名單上（僅隱藏名單；要真正保密請設密碼）。</span>
-        </div>
-        <div class="privacy-row">
-          <span>🔒 密碼保護</span>
-          <span class="grow" id="pwStatus">未設定</span>
-          <button type="button" class="btn-small" id="btnPwSet">設定密碼</button>
-          <button type="button" class="btn-small danger hidden" id="btnPwRemove">移除密碼</button>
-          <span class="hint">設定後，雲端只存加密資料，別的裝置要看必須輸入密碼。本機不影響使用。</span>
-        </div>
       </div>
 
       <div class="settings-grid">
@@ -854,11 +749,6 @@
     </div>
 
     <div class="card">
-      <div class="view-banner hidden" id="viewBanner">
-        <span class="grow">正在查看 <b id="viewBannerName"></b> 的班表（唯讀）</span>
-        <button type="button" class="btn-small" id="btnExitView">返回我的班表</button>
-      </div>
-
       <div class="view-toggle" id="viewToggle">
         <button type="button" class="active" data-view="both">兩人都顯示</button>
         <button type="button" data-view="p1" id="viewBtnP1">只顯示武昌</button>
@@ -959,16 +849,6 @@
       var viewMode = users[currentUser].view || 'both';
       var notes = users[currentUser].notes || {};
       var now = new Date();
-      // viewing: 正在唯讀查看的成員快照（null = 看自己的）
-      var viewing = null;
-      // memberList: 群組成員 [{owner, visible, locked}]
-      var memberList = [];
-      // cloudCache: 最近一次雲端原始 rows（供解密/檢視用）
-      var cloudCache = { configs: [], notesRows: [] };
-      // sessionKeys: 記憶體內的密碼（owner -> password，重開頁面即清除）
-      var sessionKeys = {};
-      // unlockPrompted: 本 session 已提示過解鎖的 owner
-      var unlockPrompted = {};
       currentYear = now.getFullYear();
       currentMonth = now.getMonth();
 
@@ -990,10 +870,7 @@
           p1: { name: '武昌', pattern: DEFAULT_PATTERNS.p1.pattern, startDate: DEFAULT_PATTERNS.p1.startDate },
           p2: { name: '百凱', pattern: DEFAULT_PATTERNS.p2.pattern, startDate: DEFAULT_PATTERNS.p2.startDate },
           notes: {},
-          view: 'both',
-          visible: true,
-          locked: false,
-          encRows: {}
+          view: 'both'
         };
         // 遷移舊版單一班表資料
         try {
@@ -1022,9 +899,6 @@
               Object.keys(u).forEach(function(k) {
                 if (!u[k].notes) u[k].notes = {};
                 if (!u[k].view) u[k].view = 'both';
-                if (u[k].visible === undefined) u[k].visible = true;
-                if (u[k].locked === undefined) u[k].locked = false;
-                if (!u[k].encRows) u[k].encRows = {};
               });
               return u;
             }
@@ -1044,7 +918,7 @@
         return '武昌';
       }
 
-      function cur() { return viewing || users[currentUser]; }
+      function cur() { return users[currentUser]; }
 
       function saveUsers() {
         try {
@@ -1081,237 +955,38 @@
         ]).then(function (res) {
           if (res[0].error) throw res[0].error;
           if (res[1].error) throw res[1].error;
-          var configs = res[0].data || [];
-          var notesRows = res[1].data || [];
-          cloudCache = { configs: configs, notesRows: notesRows };
-          return { configs: configs, notesRows: notesRows, members: parseMembers(configs), startedAt: startedAt };
+          return { configs: res[0].data || [], notesRows: res[1].data || [], startedAt: startedAt };
         });
-      }
-
-      // 從雲端 rows 重建群組成員名單（有 prefs 列的為準，否則視為可見、未鎖定）
-      function parseMembers(configs) {
-        var owners = {};
-        configs.forEach(function (r) {
-          var idx = r.id.indexOf('::');
-          if (idx === -1) return;
-          var owner = r.id.slice(0, idx);
-          var kind = r.id.slice(idx + 2);
-          if (!owner || (kind !== 'me' && kind !== 'bk' && kind !== 'meta' && kind !== 'prefs')) return;
-          if (!owners[owner]) owners[owner] = { owner: owner, visible: true, locked: false };
-          if (kind === 'prefs') {
-            try {
-              var p = JSON.parse(r.pattern || '{}');
-              owners[owner].visible = (p.v !== 0);
-              owners[owner].locked = (p.l === 1);
-            } catch (e) {}
-          }
-        });
-        return Object.keys(owners).map(function (k) { return owners[k]; });
       }
 
       function sigNotes(o) {
         return JSON.stringify(Object.keys(o || {}).sort().map(function(k) { return [k, o[k]]; }));
       }
 
-      // ===== 端到端加密（WebCrypto AES-GCM + PBKDF2）=====
-      // 密碼只存在使用者腦中/記憶體，雲端只存 ENC1. 開頭的密文。
-      function cryptoOK() {
-        return (typeof crypto !== 'undefined' && crypto.subtle && typeof TextEncoder !== 'undefined');
-      }
-
-      function bufToB64(buf) {
-        var bytes = new Uint8Array(buf);
-        var s = '';
-        for (var i = 0; i < bytes.length; i += 0x8000) {
-          s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-        }
-        return btoa(s);
-      }
-
-      function b64ToBuf(b64) {
-        var s = atob(b64);
-        var bytes = new Uint8Array(s.length);
-        for (var i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i);
-        return bytes;
-      }
-
-      function deriveKey(password, salt) {
-        var enc = new TextEncoder();
-        return crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey'])
-          .then(function(base) {
-            return crypto.subtle.deriveKey(
-              { name: 'PBKDF2', salt: salt, iterations: 100000, hash: 'SHA-256' },
-              base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
-          });
-      }
-
-      function encJSON(obj, password) {
-        var salt = crypto.getRandomValues(new Uint8Array(16));
-        var iv = crypto.getRandomValues(new Uint8Array(12));
-        var data = new TextEncoder().encode(JSON.stringify(obj));
-        return deriveKey(password, salt).then(function(key) {
-          return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, data);
-        }).then(function(ct) {
-          return 'ENC1.' + bufToB64(salt) + '.' + bufToB64(iv) + '.' + bufToB64(ct);
-        });
-      }
-
-      function decJSON(str, password) {
-        var parts = String(str).split('.');
-        if (parts[0] !== 'ENC1' || parts.length !== 4) return Promise.reject(new Error('bad format'));
-        var salt, iv, ct;
-        try {
-          salt = b64ToBuf(parts[1]); iv = b64ToBuf(parts[2]); ct = b64ToBuf(parts[3]);
-        } catch (e) { return Promise.reject(e); }
-        return deriveKey(password, salt).then(function(key) {
-          return crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, ct);
-        }).then(function(pt) {
-          return JSON.parse(new TextDecoder().decode(pt));
-        });
-      }
-
-      function isEnc(s) { return typeof s === 'string' && s.indexOf('ENC1.') === 0; }
-
-      function sigOf(u) {
-        return [u.p1.name, u.p1.pattern, u.p1.startDate, u.p2.name, u.p2.pattern, u.p2.startDate,
-          sigNotes(u.notes), u.view, u.visible ? 1 : 0, u.locked ? 1 : 0].join('|');
-      }
-
-      function finishApply(u, before) {
-        renderMembers();
-        renderPrivacy();
-        if (sigOf(u) === before) return; // 雲端無變化，不重繪
-        if (!viewing) {
-          notes = u.notes;
-          viewMode = u.view || 'both';
-        }
-        saveUsers();
-        if (viewing) return; // 正在看別人：只更新自己的暫存，不重繪
-        loadForm();
-        renderUserBar();
-        initViewToggle();
-        renderCalendar();
-      }
-
-      // 收集屬於我的原始 rows（含密文）
-      function collectMyEnc(cfg, notesRows, prefix) {
-        var enc = { me: '', bk: '', meta: '', notes: {} };
-        if (cfg.me) enc.me = cfg.me.pattern || '';
-        if (cfg.bk) enc.bk = cfg.bk.pattern || '';
-        if (cfg.meta) enc.meta = cfg.meta.pattern || '';
-        notesRows.forEach(function (r) {
-          if (!r.note) return;
-          if (r.date_key.indexOf(prefix) === 0) enc.notes[r.date_key.slice(prefix.length)] = r.note;
-        });
-        return enc;
-      }
-
-      function hasAnyEnc(enc) {
-        if (!enc) return false;
-        if (isEnc(enc.me) || isEnc(enc.bk) || isEnc(enc.meta)) return true;
-        return Object.keys(enc.notes || {}).some(function (k) { return isEnc(enc.notes[k]); });
-      }
-
-      // 用密碼解密某人的整包資料；任一解不開即回傳 null（密碼錯誤）
-      function decryptOwner(enc, key) {
-        function decStr(s) {
-          if (!s) return Promise.resolve(null);
-          if (!isEnc(s)) return Promise.resolve(null);
-          return decJSON(s, key).then(function (o) { return o; }, function () { return null; });
-        }
-        var pMe = decStr(enc.me), pBk = decStr(enc.bk), pMeta = decStr(enc.meta);
-        var keys = Object.keys(enc.notes || {});
-        var pNotes = Promise.all(keys.map(function (k) {
-          return decStr(enc.notes[k]).then(function (o) { return { k: k, o: o }; });
-        }));
-        return Promise.all([pMe, pBk, pMeta, pNotes]).then(function (r) {
-          if (!enc.me && !enc.bk && !enc.meta && keys.length === 0) return null;
-          if ((enc.me && !r[0]) || (enc.bk && !r[1]) || (enc.meta && !r[2])) return null;
-          for (var i = 0; i < r[3].length; i++) {
-            if (enc.notes[r[3][i].k] && (!r[3][i].o || r[3][i].o.t === undefined)) return null;
-          }
-          var notesOut = {};
-          r[3].forEach(function (e) { if (e.o && e.o.t !== undefined && e.o.t !== null) notesOut[e.k] = e.o.t; });
-          return {
-            me: r[0] ? { p: r[0].p || '', s: r[0].s || '' } : null,
-            bk: r[1] ? { p: r[1].p || '', s: r[1].s || '' } : null,
-            meta: r[2] ? { a: r[2].a || '', b: r[2].b || '' } : null,
-            notes: notesOut
-          };
-        });
-      }
-
       function applyData(d) {
-        // 丟棄在本地最後一次儲存之前就發出的請求回應，避免蓋掉剛存好的資料
+        // 丟棄在本地最後一次儲存之前就發出的請求回應，避免蓋掉剛存好的姓名/規則
         if (d.startedAt && d.startedAt < lastLocalSave) return;
-        var u = users[currentUser];
-        if (!u) return;
+        var u = cur();
         var prefix = ownerPrefix();
         var isDefault = (currentUser === '武昌');
         var cfg = {};
-        var prefs = null;
         d.configs.forEach(function (r) {
           if (r.id.indexOf(prefix) === 0) {
-            var kind = r.id.slice(prefix.length);
-            if (kind === 'prefs') { try { prefs = JSON.parse(r.pattern || '{}'); } catch (e) { prefs = null; } }
-            else if (!cfg[kind]) cfg[kind] = r;
+            cfg[r.id.slice(prefix.length)] = r;
           } else if (isDefault && (r.id === 'me' || r.id === 'bk') && !cfg[r.id]) {
             cfg[r.id] = r;
           }
         });
-        memberList = d.members || [];
-        var before = sigOf(u);
-        var myEnc = collectMyEnc(cfg, d.notesRows, prefix);
-        // 鎖定狀態：雲端 prefs 或出現密文都算鎖定（雙向自癒）
-        if (prefs) u.visible = (prefs.v !== 0);
-        var encSeen = hasAnyEnc(myEnc);
-        if ((prefs && prefs.l === 1) || encSeen) u.locked = true;
-        else if (prefs && prefs.l === 0 && !encSeen) u.locked = false;
-        // 無 prefs 列時不動 locked（避免離線重開誤解鎖）
-
-        if (u.locked) {
-          var key = sessionKeys[currentUser];
-          if (key && cryptoOK() && hasAnyEnc(myEnc)) {
-            decryptOwner(myEnc, key).then(function (plain) {
-              if (!plain) {
-                // 密碼可能已在別處更改：清除 session，下次重問
-                delete sessionKeys[currentUser];
-                unlockPrompted[currentUser] = false;
-                u.encRows = myEnc;
-                finishApply(u, before);
-                return;
-              }
-              if (plain.me) { u.p1.pattern = plain.me.p; if (plain.me.s) u.p1.startDate = plain.me.s; }
-              if (plain.bk) { u.p2.pattern = plain.bk.p; if (plain.bk.s) u.p2.startDate = plain.bk.s; }
-              if (plain.meta) { if (plain.meta.a) u.p1.name = plain.meta.a; if (plain.meta.b) u.p2.name = plain.meta.b; }
-              u.notes = plain.notes;
-              u.encRows = myEnc;
-              finishApply(u, before);
-            });
-          } else {
-            // 沒密碼：只快取密文，絕不碰本機明文
-            u.encRows = myEnc;
-            saveUsers();
-            renderMembers();
-            renderPrivacy();
-            if (!unlockPrompted[currentUser] && hasAnyEnc(myEnc)) {
-              unlockPrompted[currentUser] = true;
-              promptUnlockSelf();
-            }
-          }
-          return;
-        }
-
-        // 明文路徑（跳過任何密文，絕不顯示亂碼）
-        if (cfg.me && cfg.me.pattern && !isEnc(cfg.me.pattern)) { u.p1.pattern = cfg.me.pattern; if (cfg.me.start_date) u.p1.startDate = cfg.me.start_date; }
-        if (cfg.bk && cfg.bk.pattern && !isEnc(cfg.bk.pattern)) { u.p2.pattern = cfg.bk.pattern; if (cfg.bk.start_date) u.p2.startDate = cfg.bk.start_date; }
-        if (cfg.meta && !isEnc(cfg.meta.pattern)) {
+        var before = [u.p1.name, u.p1.pattern, u.p1.startDate, u.p2.name, u.p2.pattern, u.p2.startDate, sigNotes(u.notes), u.view].join('|');
+        if (cfg.me && cfg.me.pattern) { u.p1.pattern = cfg.me.pattern; if (cfg.me.start_date) u.p1.startDate = cfg.me.start_date; }
+        if (cfg.bk && cfg.bk.pattern) { u.p2.pattern = cfg.bk.pattern; if (cfg.bk.start_date) u.p2.startDate = cfg.bk.start_date; }
+        if (cfg.meta) {
           if (cfg.meta.pattern) u.p1.name = cfg.meta.pattern;
-          if (cfg.meta.start_date && !isEnc(cfg.meta.start_date)) u.p2.name = cfg.meta.start_date;
+          if (cfg.meta.start_date) u.p2.name = cfg.meta.start_date;
         }
         var merged = {};
         d.notesRows.forEach(function (r) {
-          if (!r.note || isEnc(r.note)) return;
+          if (!r.note) return;
           if (r.date_key.indexOf(prefix) === 0) {
             merged[r.date_key.slice(prefix.length)] = r.note;
           } else if (isDefault && r.date_key.indexOf('::') === -1 && !merged[r.date_key]) {
@@ -1319,256 +994,15 @@
           }
         });
         u.notes = merged;
-        u.encRows = {};
-        finishApply(u, before);
-      }
-
-      function promptUnlockSelf() {
-        if (!cryptoOK()) { showToast('此環境不支援解密，請用 HTTPS 開啟'); return; }
-        var pw = prompt('你的班表已設密碼，請輸入以解鎖同步：', '');
-        if (!pw) return;
-        tryUnlockSelf(pw);
-      }
-
-      function tryUnlockSelf(pw) {
-        var u = users[currentUser];
-        decryptOwner(u.encRows || { notes: {} }, pw).then(function (plain) {
-          if (!plain) {
-            showToast('密碼錯誤');
-            unlockPrompted[currentUser] = false;
-            return;
-          }
-          sessionKeys[currentUser] = pw;
-          if (plain.me) { u.p1.pattern = plain.me.p; if (plain.me.s) u.p1.startDate = plain.me.s; }
-          if (plain.bk) { u.p2.pattern = plain.bk.p; if (plain.bk.s) u.p2.startDate = plain.bk.s; }
-          if (plain.meta) { if (plain.meta.a) u.p1.name = plain.meta.a; if (plain.meta.b) u.p2.name = plain.meta.b; }
-          u.notes = plain.notes;
-          notes = u.notes;
-          saveUsers();
-      // ===== 隱私與密碼 =====
-      function renderPrivacy() {
-        var u = users[currentUser];
-        if (!u) return;
-        $('visibleToggle').checked = !!u.visible;
-        $('pwStatus').textContent = u.locked ? '已設定（雲端為加密資料）' : '未設定';
-        $('btnPwSet').textContent = u.locked ? '變更密碼' : '設定密碼';
-        $('btnPwRemove').classList.toggle('hidden', !u.locked);
-      }
-
-      $('visibleToggle').addEventListener('change', function() {
-        if (viewing) return;
-        var u = users[currentUser];
-        u.visible = this.checked;
+        var after = [u.p1.name, u.p1.pattern, u.p1.startDate, u.p2.name, u.p2.pattern, u.p2.startDate, sigNotes(u.notes), u.view].join('|');
+        if (before === after) return; // 雲端無變化，不重繪
+        notes = u.notes;
+        viewMode = u.view || 'both';
         saveUsers();
-        persistPrefs();
-        renderMembers();
-        showToast(u.visible ? '群組成員看得到你了' : '已隱藏，不會出現在別人名單');
-      });
-
-      function getMyCloudEnc() {
-        var prefix = ownerPrefix();
-        var enc = { me: '', bk: '', meta: '', notes: {} };
-        cloudCache.configs.forEach(function (r) {
-          if (r.id.indexOf(prefix) !== 0) return;
-          var kind = r.id.slice(prefix.length);
-          if (kind === 'me') enc.me = r.pattern || '';
-          else if (kind === 'bk') enc.bk = r.pattern || '';
-          else if (kind === 'meta') enc.meta = r.pattern || '';
-        });
-        cloudCache.notesRows.forEach(function (r) {
-          if (r.note && r.date_key.indexOf(prefix) === 0) enc.notes[r.date_key.slice(prefix.length)] = r.note;
-        });
-        var u = users[currentUser];
-        if (!hasAnyEnc(enc) && u.encRows && hasAnyEnc(u.encRows)) return u.encRows;
-        return enc;
-      }
-
-      function verifyMyPassword(pw) {
-        var enc = getMyCloudEnc();
-        if (!hasAnyEnc(enc)) return Promise.resolve(true); // 雲端無加密資料，無需驗證
-        return decryptOwner(enc, pw).then(function (plain) { return !!plain; });
-      }
-
-      $('btnPwSet').addEventListener('click', function() {
-        if (viewing) return;
-        if (!cryptoOK()) { showToast('此環境不支援加密，請用 HTTPS 開啟'); return; }
-        var u = users[currentUser];
-        if (!u.locked) {
-          var pw1 = prompt('設定密碼（至少 4 碼，忘記將無法找回）：', '');
-          if (!pw1) return;
-          if (pw1.length < 4) { showToast('密碼至少 4 碼'); return; }
-          var pw2 = prompt('再輸入一次確認：', '');
-          if (pw1 !== pw2) { showToast('兩次輸入不同'); return; }
-          u.locked = true;
-          sessionKeys[currentUser] = pw1;
-          saveUsers();
-          persistConfig();
-          persistNotes();
-          renderPrivacy();
-          showToast('已設定密碼，雲端資料已加密');
-        } else {
-          var curPw = prompt('先輸入目前密碼：', '');
-          if (!curPw) return;
-          verifyMyPassword(curPw).then(function (ok) {
-            if (!ok) { showToast('目前密碼錯誤'); return; }
-            var npw1 = prompt('輸入新密碼（至少 4 碼）：', '');
-            if (!npw1) return;
-            if (npw1.length < 4) { showToast('密碼至少 4 碼'); return; }
-            var npw2 = prompt('再輸入一次確認：', '');
-            if (npw1 !== npw2) { showToast('兩次輸入不同'); return; }
-            sessionKeys[currentUser] = npw1;
-            persistConfig();
-            persistNotes();
-            showToast('密碼已變更，資料已重新加密');
-          });
-        }
-      });
-
-      $('btnPwRemove').addEventListener('click', function() {
-        if (viewing) return;
-        var u = users[currentUser];
-        if (!u.locked) return;
-        var pw = prompt('輸入目前密碼以移除保護：', '');
-        if (!pw) return;
-        verifyMyPassword(pw).then(function (ok) {
-          if (!ok) {
-            if (confirm('密碼不正確。\n\n若已忘記密碼，可清除雲端加密資料並重設（本機資料保留，會重新上傳為明文）。\n\n確定要清除重設嗎？')) resetOwnerCloud();
-            return;
-          }
-          u.locked = false;
-          u.encRows = {};
-          delete sessionKeys[currentUser];
-          saveUsers();
-          persistConfig();
-          persistNotes();
-          renderPrivacy();
-          showToast('已移除密碼保護');
-        });
-      });
-
-      function resetOwnerCloud() {
-        if (!sb) { showToast('離線中無法重設'); return; }
-        var u = users[currentUser];
-        var prefix = ownerPrefix();
-        var noteKeys = [];
-        cloudCache.notesRows.forEach(function (r) {
-          if (r.date_key.indexOf(prefix) === 0) noteKeys.push(r.date_key);
-        });
-        showToast('清除中…');
-        sb.from('shift_notes').delete().in('date_key', noteKeys.length ? noteKeys : ['__none__']).then(function () {
-          return sb.from('shift_config').delete().in('id', [prefix + 'me', prefix + 'bk', prefix + 'meta', prefix + 'prefs']);
-        }).then(function (res) {
-          if (res.error) { showToast('清除失敗：' + res.error.message); return; }
-          u.locked = false;
-          u.encRows = {};
-          delete sessionKeys[currentUser];
-          saveUsers();
-          persistConfig();
-          persistNotes();
-          renderPrivacy();
-          showToast('已重設，資料已重新上傳為明文');
-        }).catch(function () { showToast('清除失敗'); });
-      }
-
-      // ===== 群組成員與唯讀查看 =====
-      function rowsForOwner(owner) {
-        var prefix = String(owner).replace(/:/g, '') + '::';
-        var cfg = {};
-        cloudCache.configs.forEach(function (r) {
-          if (r.id.indexOf(prefix) === 0) {
-            var kind = r.id.slice(prefix.length);
-            if (!cfg[kind]) cfg[kind] = r;
-          }
-        });
-        var noteRows = cloudCache.notesRows.filter(function (r) {
-          return r.note && r.date_key.indexOf(prefix) === 0;
-        });
-        return { cfg: cfg, noteRows: noteRows, prefix: prefix };
-      }
-
-      function snapshotFromPlain(owner, cfg, noteRows, prefix) {
-        var p1 = { name: owner, pattern: '', startDate: '' };
-        var p2 = { name: '', pattern: '', startDate: '' };
-        if (cfg.me && !isEnc(cfg.me.pattern)) { p1.pattern = cfg.me.pattern || ''; p1.startDate = cfg.me.start_date || ''; }
-        if (cfg.bk && !isEnc(cfg.bk.pattern)) { p2.pattern = cfg.bk.pattern || ''; p2.startDate = cfg.bk.start_date || ''; }
-        if (cfg.meta && !isEnc(cfg.meta.pattern)) {
-          if (cfg.meta.pattern) p1.name = cfg.meta.pattern;
-          if (cfg.meta.start_date && !isEnc(cfg.meta.start_date)) p2.name = cfg.meta.start_date;
-        }
-        var nts = {};
-        noteRows.forEach(function (r) {
-          if (!isEnc(r.note)) nts[r.date_key.slice(prefix.length)] = r.note;
-        });
-        return { owner: owner, p1: p1, p2: p2, notes: nts, view: 'both' };
-      }
-
-      function viewMember(owner) {
-        if (owner === currentUser) { exitViewing(); return; }
-        var m = null;
-        memberList.forEach(function (x) { if (x.owner === owner) m = x; });
-        if (!m || !m.visible) { showToast('找不到該成員'); return; }
-        var r = rowsForOwner(owner);
-        if (m.locked) {
-          if (!cryptoOK()) { showToast('此環境不支援解密'); return; }
-          var pw = sessionKeys[owner] || prompt('「' + owner + '」已設密碼，請輸入：', '');
-          if (!pw) return;
-          decryptOwner(collectMyEnc(r.cfg, r.noteRows, r.prefix), pw).then(function (plain) {
-            if (!plain) { showToast('密碼錯誤'); return; }
-            sessionKeys[owner] = pw;
-            enterViewing({
-              owner: owner,
-              p1: { name: (plain.meta && plain.meta.a) || owner, pattern: plain.me ? plain.me.p : '', startDate: plain.me ? plain.me.s : '' },
-              p2: { name: (plain.meta && plain.meta.b) || '', pattern: plain.bk ? plain.bk.p : '', startDate: plain.bk ? plain.bk.s : '' },
-              notes: plain.notes, view: 'both'
-            });
-          });
-        } else {
-          enterViewing(snapshotFromPlain(owner, r.cfg, r.noteRows, r.prefix));
-        }
-      }
-
-      function enterViewing(snap) {
-        viewing = snap;
-        notes = snap.notes;
-        $('settingsCard').classList.add('hidden');
-        $('viewBanner').classList.remove('hidden');
-        $('viewBannerName').textContent = snap.owner;
+        loadForm();
+        renderUserBar();
+        initViewToggle();
         renderCalendar();
-      }
-
-      function exitViewing() {
-        if (!viewing) return;
-        viewing = null;
-        notes = users[currentUser].notes || {};
-        $('settingsCard').classList.remove('hidden');
-        $('viewBanner').classList.add('hidden');
-        renderCalendar();
-      }
-
-      $('btnExitView').addEventListener('click', exitViewing);
-
-      function renderMembers() {
-        var box = $('memberChips');
-        if (!box) return;
-        var others = memberList.filter(function (mm) { return mm.owner !== currentUser && mm.visible; });
-        if (!others.length) {
-          box.innerHTML = '<span class="member-empty">尚無其他成員（家人用此網址新增使用者並儲存一次後會出現）</span>';
-          return;
-        }
-        box.innerHTML = others.map(function (mm) {
-          return '<button type="button" class="member-chip" data-owner="' + escHtml(mm.owner) + '">' + (mm.locked ? '🔒 ' : '') + escHtml(mm.owner) + '</button>';
-        }).join('');
-        box.querySelectorAll('.member-chip').forEach(function (chip) {
-          chip.addEventListener('click', function () { viewMember(chip.dataset.owner); });
-        });
-      }
-
-      loadForm();
-          renderUserBar();
-          renderPrivacy();
-          renderCalendar();
-          showToast('已解鎖');
-        });
       }
 
       function loadShared() {
@@ -1583,93 +1017,29 @@
         });
       }
 
-      function prefsRow() {
-        var u = users[currentUser];
-        return { id: ownerPrefix() + 'prefs', pattern: JSON.stringify({ v: u.visible ? 1 : 0, l: u.locked ? 1 : 0, n: currentUser }), start_date: '' };
-      }
-
-      function upsertConfig(rows) {
+      function persistConfig() {
+        if (!sb) return;
+        var u = cur();
+        var prefix = ownerPrefix();
+        var rows = [
+          { id: prefix + 'me', pattern: u.p1.pattern, start_date: u.p1.startDate },
+          { id: prefix + 'bk', pattern: u.p2.pattern, start_date: u.p2.startDate },
+          { id: prefix + 'meta', pattern: u.p1.name, start_date: u.p2.name }
+        ];
         sb.from('shift_config').upsert(rows, { onConflict: 'id' }).then(function (res) {
           if (res.error) showToast('同步失敗：' + res.error.message);
         }).catch(function () { showToast('同步失敗'); });
       }
 
-      function upsertNotes(rows) {
-        if (!rows.length) return;
+      function persistNotes() {
+        if (!sb) return;
+        var prefix = ownerPrefix();
+        var rows = Object.keys(notes).map(function (k) {
+          return { date_key: prefix + k, note: notes[k], updated_at: Date.now() };
+        });
         sb.from('shift_notes').upsert(rows, { onConflict: 'date_key' }).then(function (res) {
           if (res.error) showToast('備註同步失敗');
         }).catch(function () { showToast('備註同步失敗'); });
-      }
-
-      // 加密用密碼：未鎖定回傳 null；鎖定則用 session key 或詢問（取消回傳 undefined）
-      function ensureKey() {
-        var u = users[currentUser];
-        if (!u.locked) return Promise.resolve(null);
-        if (!cryptoOK()) { showToast('此環境不支援加密，請用 HTTPS 開啟'); return Promise.resolve(undefined); }
-        if (sessionKeys[currentUser]) return Promise.resolve(sessionKeys[currentUser]);
-        var pw = prompt('你的班表已設密碼，請輸入以上傳加密資料：', '');
-        if (!pw) { showToast('已取消，僅存本機'); return Promise.resolve(undefined); }
-        sessionKeys[currentUser] = pw;
-        return Promise.resolve(pw);
-      }
-
-      function persistConfig() {
-        if (!sb || viewing) return;
-        lastLocalSave = Date.now();
-        ensureKey().then(function (key) {
-          if (key === undefined) return;
-          var u = users[currentUser];
-          var prefix = ownerPrefix();
-          if (!u.locked) {
-            upsertConfig([
-              { id: prefix + 'me', pattern: u.p1.pattern, start_date: u.p1.startDate },
-              { id: prefix + 'bk', pattern: u.p2.pattern, start_date: u.p2.startDate },
-              { id: prefix + 'meta', pattern: u.p1.name, start_date: u.p2.name },
-              prefsRow()
-            ]);
-            return;
-          }
-          Promise.all([
-            encJSON({ p: u.p1.pattern, s: u.p1.startDate }, key),
-            encJSON({ p: u.p2.pattern, s: u.p2.startDate }, key),
-            encJSON({ a: u.p1.name, b: u.p2.name }, key)
-          ]).then(function (encs) {
-            upsertConfig([
-              { id: prefix + 'me', pattern: encs[0], start_date: '' },
-              { id: prefix + 'bk', pattern: encs[1], start_date: '' },
-              { id: prefix + 'meta', pattern: encs[2], start_date: '' },
-              prefsRow()
-            ]);
-          }).catch(function () { showToast('加密失敗'); });
-        });
-      }
-
-      function persistPrefs() {
-        if (!sb || viewing) return;
-        lastLocalSave = Date.now();
-        upsertConfig([prefsRow()]);
-      }
-
-      function persistNotes() {
-        if (!sb || viewing) return;
-        lastLocalSave = Date.now();
-        ensureKey().then(function (key) {
-          if (key === undefined) return;
-          var u = users[currentUser];
-          var prefix = ownerPrefix();
-          var keys = Object.keys(notes);
-          if (!u.locked) {
-            upsertNotes(keys.map(function (k) {
-              return { date_key: prefix + k, note: notes[k], updated_at: Date.now() };
-            }));
-            return;
-          }
-          Promise.all(keys.map(function (k) {
-            return encJSON({ t: notes[k] }, key).then(function (e) {
-              return { date_key: prefix + k, note: e, updated_at: Date.now() };
-            });
-          })).then(upsertNotes).catch(function () { showToast('加密失敗'); });
-        });
       }
 
       function subscribe() {
@@ -1968,28 +1338,22 @@
           shiftInfo += '<br>🎉 假日：' + escHtml(holidayName);
         }
 
-        var modalBody = viewing
-          ? '<div class="shift-info">' + (existing ? escHtml(existing) : '（無備註）') + '</div>' +
-            '<div class="modal-btns"><button type="button" id="btnCancelNote">關閉</button></div>'
-          : '<textarea id="noteInput" placeholder="輸入備註事項...">' + escHtml(existing) + '</textarea>' +
-            '<div class="modal-btns">' +
-            (existing ? '<button type="button" class="btn-delete" id="btnDelNote">刪除</button>' : '') +
-            '<button type="button" id="btnCancelNote">取消</button>' +
-            '<button type="button" class="btn-save" id="btnSaveNote">儲存</button>' +
-            '</div>';
-
         var html = '<div class="modal-overlay" id="noteModal">' +
           '<div class="modal">' +
           '<h3>' + y + ' 年 ' + (m + 1) + ' 月 ' + d + ' 日</h3>' +
           '<div class="shift-info">' + shiftInfo + '</div>' +
-          modalBody +
+          '<textarea id="noteInput" placeholder="輸入備註事項...">' + escHtml(existing) + '</textarea>' +
+          '<div class="modal-btns">' +
+          (existing ? '<button type="button" class="btn-delete" id="btnDelNote">刪除</button>' : '') +
+          '<button type="button" id="btnCancelNote">取消</button>' +
+          '<button type="button" class="btn-save" id="btnSaveNote">儲存</button>' +
+          '</div>' +
           '</div>' +
           '</div>';
 
         $('modalContainer').innerHTML = html;
 
         $('btnCancelNote').addEventListener('click', closeModal);
-        if ($('btnSaveNote')) {
         $('btnSaveNote').addEventListener('click', function() {
           var val = $('noteInput').value.trim();
           if (val) {
@@ -2004,7 +1368,6 @@
           renderCalendar();
           showToast('已儲存備註');
         });
-        }
 
         if ($('btnDelNote')) {
           $('btnDelNote').addEventListener('click', function() {
@@ -2022,7 +1385,7 @@
           if (e.target === $('noteModal')) closeModal();
         });
 
-        if ($('noteInput')) $('noteInput').focus();
+        $('noteInput').focus();
       }
 
       function closeModal() {
@@ -2063,7 +1426,6 @@
       }
 
       function applySettings() {
-        if (viewing) return;
         var u = cur();
         u.p1.name = $('p1Name').value.trim() || u.p1.name || '我';
         u.p1.pattern = $('myPattern').value.trim();
@@ -2198,19 +1560,14 @@
 
       function switchUser(name) {
         if (!users[name]) return;
-        viewing = null;
-        $('settingsCard').classList.remove('hidden');
-        $('viewBanner').classList.add('hidden');
         currentUser = name;
         viewMode = users[name].view || 'both';
         notes = users[name].notes || {};
         saveUsers();
         loadForm();
         renderUserBar();
-        renderPrivacy();
         initViewToggle();
         renderCalendar();
-        persistPrefs();
         refreshQuiet();
       }
 
@@ -2224,7 +1581,7 @@
         name = name.trim().replace(/:/g, '');
         if (!name) { showToast('名稱不可空白'); return; }
         if (users[name]) { showToast('此名稱已存在'); return; }
-        users[name] = { name: name, p1: blankPerson('我'), p2: blankPerson('伴侶'), notes: {}, view: 'both', visible: true, locked: false, encRows: {} };
+        users[name] = { name: name, p1: blankPerson('我'), p2: blankPerson('伴侶'), notes: {}, view: 'both' };
         switchUser(name);
         var fields = document.querySelectorAll('.pattern-field');
         var anyHidden = false;
@@ -2244,8 +1601,6 @@
 
       loadForm();
       renderUserBar();
-      renderPrivacy();
-      renderMembers();
       initViewToggle();
       renderCalendar();
       startApp();
