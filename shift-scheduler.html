@@ -256,7 +256,9 @@
       text-align: center;
       color: var(--text);
       letter-spacing: 1px;
+      cursor: pointer;
     }
+    .month-nav h2:hover { color: var(--primary); }
     .nav-btn {
       width: 44px;
       height: 44px;
@@ -362,7 +364,8 @@
     }
     .lunar-date {
       font-size: 10px;
-      color: #94a3b8;
+      font-weight: 600;
+      color: #b45309;
       white-space: nowrap;
       line-height: 1.2;
     }
@@ -617,6 +620,26 @@
       border-color: var(--primary);
       box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
     }
+    .modal select {
+      width: 100%;
+      padding: 11px 14px;
+      font-size: 15px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+      background: #fff;
+      font-family: inherit;
+      color: var(--text);
+    }
+    .modal select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+    .jump-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
     .modal-btns {
       display: flex;
       gap: 8px;
@@ -780,6 +803,7 @@
       var sb = null;
       var syncTimer = 0;
       var started = false;
+      var lastLocalSave = 0;
 
       var DEFAULT_PATTERNS = {
         p1: { pattern: '11100110002200222002200011001110020022200220001100', startDate: '2021-10-01' },
@@ -924,17 +948,24 @@
       function ownerPrefix() { return String(currentUser).replace(/:/g, '') + '::'; }
 
       function fetchAll() {
+        var startedAt = Date.now();
         return Promise.all([
           sb.from('shift_config').select('id, pattern, start_date'),
           sb.from('shift_notes').select('date_key, note, updated_at')
         ]).then(function (res) {
           if (res[0].error) throw res[0].error;
           if (res[1].error) throw res[1].error;
-          return { configs: res[0].data || [], notesRows: res[1].data || [] };
+          return { configs: res[0].data || [], notesRows: res[1].data || [], startedAt: startedAt };
         });
       }
 
+      function sigNotes(o) {
+        return JSON.stringify(Object.keys(o || {}).sort().map(function(k) { return [k, o[k]]; }));
+      }
+
       function applyData(d) {
+        // 丟棄在本地最後一次儲存之前就發出的請求回應，避免蓋掉剛存好的姓名/規則
+        if (d.startedAt && d.startedAt < lastLocalSave) return;
         var u = cur();
         var prefix = ownerPrefix();
         var isDefault = (currentUser === '武昌');
@@ -946,6 +977,7 @@
             cfg[r.id] = r;
           }
         });
+        var before = [u.p1.name, u.p1.pattern, u.p1.startDate, u.p2.name, u.p2.pattern, u.p2.startDate, sigNotes(u.notes), u.view].join('|');
         if (cfg.me && cfg.me.pattern) { u.p1.pattern = cfg.me.pattern; if (cfg.me.start_date) u.p1.startDate = cfg.me.start_date; }
         if (cfg.bk && cfg.bk.pattern) { u.p2.pattern = cfg.bk.pattern; if (cfg.bk.start_date) u.p2.startDate = cfg.bk.start_date; }
         if (cfg.meta) {
@@ -962,6 +994,8 @@
           }
         });
         u.notes = merged;
+        var after = [u.p1.name, u.p1.pattern, u.p1.startDate, u.p2.name, u.p2.pattern, u.p2.startDate, sigNotes(u.notes), u.view].join('|');
+        if (before === after) return; // 雲端無變化，不重繪
         notes = u.notes;
         viewMode = u.view || 'both';
         saveUsers();
@@ -1328,6 +1362,7 @@
             delete notes[dk];
           }
           saveUsers();
+          lastLocalSave = Date.now();
           persistNotes();
           closeModal();
           renderCalendar();
@@ -1338,6 +1373,7 @@
           $('btnDelNote').addEventListener('click', function() {
             delete notes[dk];
           saveUsers();
+          lastLocalSave = Date.now();
           persistNotes();
           closeModal();
           renderCalendar();
@@ -1356,6 +1392,39 @@
         $('modalContainer').innerHTML = '';
       }
 
+      function openJumpModal() {
+        var years = '';
+        for (var y = currentYear - 10; y <= currentYear + 10; y++) {
+          years += '<option value="' + y + '"' + (y === currentYear ? ' selected' : '') + '>' + y + ' 年</option>';
+        }
+        var months = '';
+        for (var m = 1; m <= 12; m++) {
+          months += '<option value="' + (m - 1) + '"' + ((m - 1) === currentMonth ? ' selected' : '') + '>' + m + ' 月</option>';
+        }
+        $('modalContainer').innerHTML = '<div class="modal-overlay" id="noteModal">' +
+          '<div class="modal">' +
+          '<h3>選擇年月</h3>' +
+          '<div class="jump-row"><select id="jumpYear">' + years + '</select>' +
+          '<select id="jumpMonth">' + months + '</select></div>' +
+          '<div class="modal-btns">' +
+          '<button type="button" id="btnCancelJump">取消</button>' +
+          '<button type="button" class="btn-save" id="btnGoJump">前往</button>' +
+          '</div>' +
+          '</div>' +
+          '</div>';
+
+        $('btnCancelJump').addEventListener('click', closeModal);
+        $('btnGoJump').addEventListener('click', function() {
+          currentYear = parseInt($('jumpYear').value, 10);
+          currentMonth = parseInt($('jumpMonth').value, 10);
+          closeModal();
+          renderCalendar();
+        });
+        $('noteModal').addEventListener('click', function(e) {
+          if (e.target === $('noteModal')) closeModal();
+        });
+      }
+
       function applySettings() {
         var u = cur();
         u.p1.name = $('p1Name').value.trim() || u.p1.name || '我';
@@ -1364,6 +1433,7 @@
         u.p2.name = $('p2Name').value.trim() || u.p2.name || '伴侶';
         u.p2.pattern = $('bkPattern').value.trim();
         u.p2.startDate = $('bkStartDate').value;
+        lastLocalSave = Date.now();
         saveUsers();
         persistConfig();
         loadForm();
@@ -1372,14 +1442,21 @@
         showToast('已更新班表');
       }
 
+      function setIfIdle(id, val) {
+        var el = $(id);
+        if (!el) return;
+        if (document.activeElement === el) return; // 使用者正在輸入，不覆寫
+        if (el.value !== val) el.value = val;
+      }
+
       function loadForm() {
         var u = cur();
-        $('p1Name').value = u.p1.name || '';
-        $('myPattern').value = u.p1.pattern || '';
-        $('myStartDate').value = u.p1.startDate || '';
-        $('p2Name').value = u.p2.name || '';
-        $('bkPattern').value = u.p2.pattern || '';
-        $('bkStartDate').value = u.p2.startDate || '';
+        setIfIdle('p1Name', u.p1.name || '');
+        setIfIdle('myPattern', u.p1.pattern || '');
+        setIfIdle('myStartDate', u.p1.startDate || '');
+        setIfIdle('p2Name', u.p2.name || '');
+        setIfIdle('bkPattern', u.p2.pattern || '');
+        setIfIdle('bkStartDate', u.p2.startDate || '');
         $('p1Heading').innerHTML = '<span class="dot dot-me"></span>' + escHtml(u.p1.name || '') + '班表';
         $('p2Heading').innerHTML = '<span class="dot dot-bk"></span>' + escHtml(u.p2.name || '') + '班表';
       }
@@ -1412,6 +1489,9 @@
         currentMonth = now.getMonth();
         renderCalendar();
       });
+
+      $('monthTitle').title = '點選可直接選擇年月';
+      $('monthTitle').addEventListener('click', openJumpModal);
 
       document.addEventListener('keydown', function(e) {
         if (e.key === 'ArrowLeft') {
