@@ -129,6 +129,61 @@
       font-size: 13px;
       letter-spacing: 0.5px;
     }
+    .field input.name-input {
+      font-family: inherit;
+      letter-spacing: 0;
+    }
+
+    .user-bar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .user-bar label {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .user-bar select {
+      flex: 1;
+      min-width: 120px;
+      padding: 10px 12px;
+      font-size: 14px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+      background: #fff;
+      color: var(--text);
+    }
+    .user-bar select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+    .btn-user-add, .btn-user-del {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      white-space: nowrap;
+    }
+    .btn-user-add {
+      background: var(--primary);
+      color: #fff;
+      border: 1px solid var(--primary);
+    }
+    .btn-user-add:hover { background: var(--primary-dark); }
+    .btn-user-del {
+      background: #fff;
+      color: var(--error);
+      border: 1px solid #fecaca;
+    }
+    .btn-user-del:hover { background: #fef2f2; }
 
     .legend {
       display: flex;
@@ -284,6 +339,13 @@
     .calendar td.other-month .day-num { opacity: 0.4; }
     .calendar td.today { box-shadow: inset 0 0 0 2px var(--primary); }
 
+    .day-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      margin-bottom: 4px;
+    }
     .day-num {
       display: block;
       text-align: center;
@@ -295,8 +357,16 @@
       color: #475569;
       background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
       border-radius: 50%;
-      margin: 0 auto 4px;
+      margin: 0;
+      flex-shrink: 0;
     }
+    .lunar-date {
+      font-size: 10px;
+      color: #94a3b8;
+      white-space: nowrap;
+      line-height: 1.2;
+    }
+    .calendar td.other-month .lunar-date { opacity: 0.4; }
     .calendar td.today .day-num {
       color: #dc2626;
       background: #fee2e2;
@@ -583,7 +653,9 @@
       .container { max-width: 100%; }
       .calendar { border-spacing: 2px; table-layout: fixed; width: 100%; }
       .calendar td { height: 90px; padding: 4px 2px; overflow: hidden; text-align: center; vertical-align: top; }
-      .day-num { width: 22px; height: 22px; line-height: 22px; font-size: 12px; margin: 0 auto 3px; }
+      .day-num { width: 22px; height: 22px; line-height: 22px; font-size: 12px; margin: 0; }
+      .day-row { margin-bottom: 3px; gap: 2px; }
+      .lunar-date { font-size: 9px; }
       .shift-badge { font-size: 10px; padding: 2px 4px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; width: fit-content; margin: 1px auto; }
       .holiday-icon, .note-icon { font-size: 9px; padding: 1px 4px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; width: fit-content; margin: 1px auto; }
       .month-nav h2 { font-size: 20px; min-width: 130px; }
@@ -594,14 +666,25 @@
 <body>
   <div class="container">
     <header>
-      <h1>📅 武昌百凱輪班表</h1>
-      <p class="subtitle">武昌 & 百凱班表合併顯示，輕鬆找出共同放假的日子</p>
+      <h1 id="appTitle">📅 武昌百凱輪班表</h1>
+      <p class="subtitle" id="appSubtitle">武昌 & 百凱班表合併顯示，輕鬆找出共同放假的日子</p>
     </header>
 
     <div class="card">
+      <div class="user-bar">
+        <label>使用者</label>
+        <select id="userSelect"></select>
+        <button type="button" class="btn-user-add" id="btnAddUser">＋ 新增</button>
+        <button type="button" class="btn-user-del" id="btnDelUser">刪除</button>
+      </div>
+
       <div class="settings-grid">
         <div class="person-settings pattern-field hidden">
-          <h3><span class="dot dot-me"></span>武昌班表（康寧 D 組）</h3>
+          <h3 id="p1Heading"><span class="dot dot-me"></span>武昌班表</h3>
+          <div class="field">
+            <label>姓名</label>
+            <input type="text" class="name-input" id="p1Name" placeholder="例如: 武昌">
+          </div>
           <div class="field">
             <label>週期起始日</label>
             <input type="date" id="myStartDate">
@@ -614,7 +697,11 @@
         </div>
 
         <div class="person-settings pattern-field hidden">
-          <h3><span class="dot dot-bk"></span>百凱班表（聯亞氣體）</h3>
+          <h3 id="p2Heading"><span class="dot dot-bk"></span>百凱班表</h3>
+          <div class="field">
+            <label>姓名</label>
+            <input type="text" class="name-input" id="p2Name" placeholder="例如: 百凱">
+          </div>
           <div class="field">
             <label>週期起始日</label>
             <input type="date" id="bkStartDate">
@@ -641,8 +728,8 @@
     <div class="card">
       <div class="view-toggle" id="viewToggle">
         <button type="button" class="active" data-view="both">兩人都顯示</button>
-        <button type="button" data-view="me">只顯示武昌</button>
-        <button type="button" data-view="bk">只顯示百凱</button>
+        <button type="button" data-view="p1" id="viewBtnP1">只顯示武昌</button>
+        <button type="button" data-view="p2" id="viewBtnP2">只顯示百凱</button>
       </div>
 
       <div class="month-nav">
@@ -675,27 +762,28 @@
   <div id="modalContainer"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lunar-javascript@1/lunar.min.js"></script>
   <script>
     (function() {
       var SUPABASE_URL = 'https://nutkocotbncqxgvjkfxi.supabase.co';
       var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51dGtvY290Ym5jcXhndmprZnhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NTcwMjcsImV4cCI6MjEwMTQzMzAyN30.yfvXV2dvYhS8cTLgyir-ddaVb5oqbYIDyjngINVccfE';
       var CACHE_KEY = 'shift_sync_cache_v1';
 
-      var STORAGE_KEY = 'shift_scheduler_data_v2';
-      var NOTES_KEY = 'shift_scheduler_notes';
-      var VIEW_KEY = 'shift_scheduler_view';
+      var USERS_KEY = 'shift_scheduler_users_v1';
+      var CURRENT_KEY = 'shift_scheduler_current_v1';
+      // 舊版 keys（僅第一次遷移用，之後不再讀寫）
+      var LEGACY_DATA_KEY = 'shift_scheduler_data_v2';
+      var LEGACY_NOTES_KEY = 'shift_scheduler_notes';
+      var LEGACY_VIEW_KEY = 'shift_scheduler_view';
       var currentYear, currentMonth;
-      var viewMode = loadView();
 
       var sb = null;
       var syncTimer = 0;
       var started = false;
 
-      var defaultData = {
-        myPattern: '11100110002200222002200011001110020022200220001100',
-        myStartDate: '2021-10-01',
-        bkPattern: '11001100110011002200220022002200',
-        bkStartDate: '2026-06-08'
+      var DEFAULT_PATTERNS = {
+        p1: { pattern: '11100110002200222002200011001110020022200220001100', startDate: '2021-10-01' },
+        p2: { pattern: '11001100110011002200220022002200', startDate: '2026-06-08' }
       };
 
       var holidays = {
@@ -731,54 +819,93 @@
         '2026-10-26': '光復節補假'
       };
 
-      var data = loadData();
-      var notes = loadNotes();
+      var users = loadUsers();
+      var currentUser = loadCurrentUser();
+      if (!users[currentUser]) currentUser = Object.keys(users)[0];
+      var viewMode = users[currentUser].view || 'both';
+      var notes = users[currentUser].notes || {};
       var now = new Date();
       currentYear = now.getFullYear();
       currentMonth = now.getMonth();
 
       function $(id) { return document.getElementById(id); }
 
-      function loadData() {
-        try {
-          var raw = localStorage.getItem(STORAGE_KEY);
-          if (raw) return JSON.parse(raw);
-        } catch(e) {}
-        return Object.assign({}, defaultData);
+      function fmtLocal(d) {
+        var mm = ('0' + (d.getMonth() + 1)).slice(-2);
+        var dd = ('0' + d.getDate()).slice(-2);
+        return d.getFullYear() + '-' + mm + '-' + dd;
       }
 
-      function saveData() {
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        } catch(e) {}
+      function blankPerson(name) {
+        return { name: name, pattern: '', startDate: fmtLocal(new Date()) };
       }
 
-      function loadNotes() {
+      function seedDefaultUser() {
+        var u = {
+          name: '武昌',
+          p1: { name: '武昌', pattern: DEFAULT_PATTERNS.p1.pattern, startDate: DEFAULT_PATTERNS.p1.startDate },
+          p2: { name: '百凱', pattern: DEFAULT_PATTERNS.p2.pattern, startDate: DEFAULT_PATTERNS.p2.startDate },
+          notes: {},
+          view: 'both'
+        };
+        // 遷移舊版單一班表資料
         try {
-          var raw = localStorage.getItem(NOTES_KEY);
-          if (raw) return JSON.parse(raw);
+          var raw = localStorage.getItem(LEGACY_DATA_KEY);
+          if (raw) {
+            var old = JSON.parse(raw);
+            if (old.myPattern) { u.p1.pattern = old.myPattern; if (old.myStartDate) u.p1.startDate = old.myStartDate; }
+            if (old.bkPattern) { u.p2.pattern = old.bkPattern; if (old.bkStartDate) u.p2.startDate = old.bkStartDate; }
+          }
+          var rawN = localStorage.getItem(LEGACY_NOTES_KEY);
+          if (rawN) u.notes = JSON.parse(rawN) || {};
+          var rawV = localStorage.getItem(LEGACY_VIEW_KEY);
+          if (rawV === 'me') u.view = 'p1';
+          else if (rawV === 'bk') u.view = 'p2';
+          else if (rawV) u.view = rawV;
         } catch(e) {}
-        return {};
+        return u;
       }
 
-      function saveNotes() {
+      function loadUsers() {
         try {
-          localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+          var raw = localStorage.getItem(USERS_KEY);
+          if (raw) {
+            var u = JSON.parse(raw);
+            if (u && Object.keys(u).length) {
+              Object.keys(u).forEach(function(k) {
+                if (!u[k].notes) u[k].notes = {};
+                if (!u[k].view) u[k].view = 'both';
+              });
+              return u;
+            }
+          }
         } catch(e) {}
+        var seed = seedDefaultUser();
+        var obj = {};
+        obj[seed.name] = seed;
+        return obj;
       }
 
-      function loadView() {
+      function loadCurrentUser() {
         try {
-          var raw = localStorage.getItem(VIEW_KEY);
+          var raw = localStorage.getItem(CURRENT_KEY);
           if (raw) return raw;
         } catch(e) {}
-        return 'both';
+        return '武昌';
+      }
+
+      function cur() { return users[currentUser]; }
+
+      function saveUsers() {
+        try {
+          localStorage.setItem(USERS_KEY, JSON.stringify(users));
+          localStorage.setItem(CURRENT_KEY, currentUser);
+        } catch(e) {}
       }
 
       function saveView() {
-        try {
-          localStorage.setItem(VIEW_KEY, viewMode);
-        } catch(e) {}
+        cur().view = viewMode;
+        saveUsers();
       }
 
       // ===== Supabase 雲端同步 =====
@@ -792,6 +919,10 @@
         return { from: function () { return q; } };
       }
 
+      // 雲端 key 以「使用者名稱::」為前綴隔離，不同使用者互不影響。
+      // '武昌' 使用者另可讀取舊格式資料（me/bk、無前綴備註）以相容舊版。
+      function ownerPrefix() { return String(currentUser).replace(/:/g, '') + '::'; }
+
       function fetchAll() {
         return Promise.all([
           sb.from('shift_config').select('id, pattern, start_date'),
@@ -799,24 +930,44 @@
         ]).then(function (res) {
           if (res[0].error) throw res[0].error;
           if (res[1].error) throw res[1].error;
-          var configs = res[0].data || [];
-          var notesRows = res[1].data || [];
-          var cfg = {};
-          configs.forEach(function (r) { cfg[r.id] = { pattern: r.pattern || '', startDate: r.start_date || '' }; });
-          var map = {};
-          notesRows.forEach(function (r) { if (r.note) map[r.date_key] = r.note; });
-          return { cfg: cfg, notes: map };
+          return { configs: res[0].data || [], notesRows: res[1].data || [] };
         });
       }
 
       function applyData(d) {
-        var cfg = d.cfg;
-        if (cfg.me && cfg.me.pattern) { data.myPattern = cfg.me.pattern; data.myStartDate = cfg.me.startDate; }
-        if (cfg.bk && cfg.bk.pattern) { data.bkPattern = cfg.bk.pattern; data.bkStartDate = cfg.bk.startDate; }
-        notes = d.notes;
-        saveData();
-        saveNotes();
+        var u = cur();
+        var prefix = ownerPrefix();
+        var isDefault = (currentUser === '武昌');
+        var cfg = {};
+        d.configs.forEach(function (r) {
+          if (r.id.indexOf(prefix) === 0) {
+            cfg[r.id.slice(prefix.length)] = r;
+          } else if (isDefault && (r.id === 'me' || r.id === 'bk') && !cfg[r.id]) {
+            cfg[r.id] = r;
+          }
+        });
+        if (cfg.me && cfg.me.pattern) { u.p1.pattern = cfg.me.pattern; if (cfg.me.start_date) u.p1.startDate = cfg.me.start_date; }
+        if (cfg.bk && cfg.bk.pattern) { u.p2.pattern = cfg.bk.pattern; if (cfg.bk.start_date) u.p2.startDate = cfg.bk.start_date; }
+        if (cfg.meta) {
+          if (cfg.meta.pattern) u.p1.name = cfg.meta.pattern;
+          if (cfg.meta.start_date) u.p2.name = cfg.meta.start_date;
+        }
+        var merged = {};
+        d.notesRows.forEach(function (r) {
+          if (!r.note) return;
+          if (r.date_key.indexOf(prefix) === 0) {
+            merged[r.date_key.slice(prefix.length)] = r.note;
+          } else if (isDefault && r.date_key.indexOf('::') === -1 && !merged[r.date_key]) {
+            merged[r.date_key] = r.note;
+          }
+        });
+        u.notes = merged;
+        notes = u.notes;
+        viewMode = u.view || 'both';
+        saveUsers();
         loadForm();
+        renderUserBar();
+        initViewToggle();
         renderCalendar();
       }
 
@@ -834,9 +985,12 @@
 
       function persistConfig() {
         if (!sb) return;
+        var u = cur();
+        var prefix = ownerPrefix();
         var rows = [
-          { id: 'me', pattern: data.myPattern, start_date: data.myStartDate },
-          { id: 'bk', pattern: data.bkPattern, start_date: data.bkStartDate }
+          { id: prefix + 'me', pattern: u.p1.pattern, start_date: u.p1.startDate },
+          { id: prefix + 'bk', pattern: u.p2.pattern, start_date: u.p2.startDate },
+          { id: prefix + 'meta', pattern: u.p1.name, start_date: u.p2.name }
         ];
         sb.from('shift_config').upsert(rows, { onConflict: 'id' }).then(function (res) {
           if (res.error) showToast('同步失敗：' + res.error.message);
@@ -845,8 +999,9 @@
 
       function persistNotes() {
         if (!sb) return;
+        var prefix = ownerPrefix();
         var rows = Object.keys(notes).map(function (k) {
-          return { date_key: k, note: notes[k], updated_at: Date.now() };
+          return { date_key: prefix + k, note: notes[k], updated_at: Date.now() };
         });
         sb.from('shift_notes').upsert(rows, { onConflict: 'date_key' }).then(function (res) {
           if (res.error) showToast('備註同步失敗');
@@ -924,11 +1079,65 @@
         return '';
       }
 
+      function personShort(name, fallback) {
+        name = (name || '').trim();
+        return name ? name.charAt(0) : fallback;
+      }
+
+      function lunarParts(y, m, d) {
+        try {
+          if (typeof Lunar === 'undefined') return null;
+          var dt = new Date(y, m, d);
+          var l = null;
+          if (Lunar.fromDate) l = Lunar.fromDate(dt);
+          else if (typeof Solar !== 'undefined' && Solar.fromDate) l = Solar.fromDate(dt).getLunar();
+          if (!l) return null;
+          return { month: l.getMonthInChinese() + '月', day: l.getDayInChinese() };
+        } catch (e) { return null; }
+      }
+
+      // 格子內顯示：初一顯示月份（正月），其餘顯示日期（初八、十五）
+      function lunarText(y, m, d) {
+        var p = lunarParts(y, m, d);
+        if (!p) return '';
+        return p.day === '初一' ? p.month : p.day;
+      }
+
+      // 詳情顯示：正月初一
+      function lunarFull(y, m, d) {
+        var p = lunarParts(y, m, d);
+        if (!p) return '';
+        return p.month + p.day;
+      }
+
+      var HOLIDAY_SHORT = [
+        ['除夕', '除夕'], ['春節', '春節'], ['端午', '端午'], ['中秋', '中秋'],
+        ['國慶', '國慶'], ['元旦', '元旦'], ['清明', '清明'], ['兒童', '兒童節'],
+        ['勞動', '勞動節'], ['和平', '和平日'], ['光復', '光復節'], ['教師', '教師節'],
+        ['行憲', '行憲日']
+      ];
+
+      function shortHoliday(name) {
+        if (!name) return '';
+        for (var i = 0; i < HOLIDAY_SHORT.length; i++) {
+          if (name.indexOf(HOLIDAY_SHORT[i][0]) !== -1) return HOLIDAY_SHORT[i][1];
+        }
+        return name.length > 2 ? name.substring(0, 2) : name;
+      }
+
+      function holidayNameFor(y, m, d) {
+        return holidays[(m + 1) + '-' + d] || lunarHolidays[y + '-' + (m + 1) + '-' + d] || '';
+      }
+
       function dateKey(y, m, d) {
         return y + '-' + (m + 1) + '-' + d;
       }
 
       function renderCalendar() {
+        var u = cur();
+        var p1 = u.p1, p2 = u.p2;
+        $('appTitle').textContent = '📅 ' + p1.name + p2.name + '輪班表';
+        $('appSubtitle').textContent = p1.name + ' & ' + p2.name + '班表合併顯示，輕鬆找出共同放假的日子';
         $('monthTitle').textContent = currentYear + ' 年 ' + (currentMonth + 1) + ' 月';
 
         var firstDay = new Date(currentYear, currentMonth, 1).getDay();
@@ -944,7 +1153,7 @@
         var totalDays = daysInMonth;
         var totalCells = Math.ceil((firstDay + totalDays) / 7) * 7;
 
-        var myOffCount = 0, bkOffCount = 0, bothOffCount = 0, sportCount = 0;
+        var p1OffCount = 0, p2OffCount = 0, bothOffCount = 0, sportCount = 0;
 
         for (var i = 0; i < totalCells; i++) {
           if (i % 7 === 0) html += '<tr>';
@@ -972,68 +1181,68 @@
 
           var isToday = (displayYear === today.getFullYear() && displayMonth === today.getMonth() && displayDay === today.getDate());
 
-          var myShift = getShift(data.myPattern, data.myStartDate, displayYear, displayMonth, displayDay);
-          var bkShift = getShift(data.bkPattern, data.bkStartDate, displayYear, displayMonth, displayDay);
+          var p1Shift = getShift(p1.pattern, p1.startDate, displayYear, displayMonth, displayDay);
+          var p2Shift = getShift(p2.pattern, p2.startDate, displayYear, displayMonth, displayDay);
 
           if (!isOther) {
-            if (myShift === 'off') myOffCount++;
-            if (bkShift === 'off') bkOffCount++;
-            if (myShift === 'off' && bkShift === 'off') bothOffCount++;
+            if (p1Shift === 'off') p1OffCount++;
+            if (p2Shift === 'off') p2OffCount++;
+            if (p1Shift === 'off' && p2Shift === 'off') bothOffCount++;
           }
 
           var cellClass = isOther ? 'other-month' : '';
           if (isToday) cellClass += ' today';
-          if (!isOther && viewMode === 'both' && myShift === 'off' && bkShift === 'off') cellClass += ' highlight-cell';
-          if (!isOther && viewMode === 'me' && myShift === 'off') cellClass += ' highlight-cell';
-          if (!isOther && viewMode === 'bk' && bkShift === 'off') cellClass += ' highlight-cell';
+          if (!isOther && viewMode === 'both' && p1Shift === 'off' && p2Shift === 'off') cellClass += ' highlight-cell';
+          if (!isOther && viewMode === 'p1' && p1Shift === 'off') cellClass += ' highlight-cell';
+          if (!isOther && viewMode === 'p2' && p2Shift === 'off') cellClass += ' highlight-cell';
 
           var badges = '';
           var mob = isMobile();
 
           if (!isOther) {
-            if (viewMode !== 'bk' && myShift) {
+            if (viewMode !== 'p2' && p1Shift) {
               badges += mob
-                ? '<div class="shift-badge ' + myShift + '">昌' + shortShiftLabel(myShift) + '</div>'
-                : '<div class="shift-badge ' + myShift + '">武昌: ' + shiftLabel(myShift) + '</div>';
+                ? '<div class="shift-badge ' + p1Shift + '">' + escHtml(personShort(p1.name, '我')) + shortShiftLabel(p1Shift) + '</div>'
+                : '<div class="shift-badge ' + p1Shift + '">' + escHtml(p1.name) + ': ' + shiftLabel(p1Shift) + '</div>';
             }
-            if (viewMode !== 'me' && bkShift) {
+            if (viewMode !== 'p1' && p2Shift) {
               badges += mob
-                ? '<div class="shift-badge ' + bkShift + '">凱' + shortShiftLabel(bkShift) + '</div>'
-                : '<div class="shift-badge ' + bkShift + '">百凱: ' + shiftLabel(bkShift) + '</div>';
+                ? '<div class="shift-badge ' + p2Shift + '">' + escHtml(personShort(p2.name, '伴')) + shortShiftLabel(p2Shift) + '</div>'
+                : '<div class="shift-badge ' + p2Shift + '">' + escHtml(p2.name) + ': ' + shiftLabel(p2Shift) + '</div>';
             }
 
-            if (viewMode === 'both' && myShift === 'off' && bkShift === 'off') {
-              var prevMyShift = getShift(data.myPattern, data.myStartDate, displayYear, displayMonth, displayDay - 1);
-              var prevBkShift = getShift(data.bkPattern, data.bkStartDate, displayYear, displayMonth, displayDay - 1);
+            if (viewMode === 'both' && p1Shift === 'off' && p2Shift === 'off') {
+              var prevP1Shift = getShift(p1.pattern, p1.startDate, displayYear, displayMonth, displayDay - 1);
+              var prevP2Shift = getShift(p2.pattern, p2.startDate, displayYear, displayMonth, displayDay - 1);
               badges = '<div class="shift-badge both-off">' + (mob ? '✓ 同休' : '✓ 兩人都休假') + '</div>';
-              if (prevMyShift !== 'night' && prevBkShift !== 'night') {
+              if (prevP1Shift !== 'night' && prevP2Shift !== 'night') {
                 badges += '<div class="sport-icon">🏃</div>';
                 sportCount++;
                 cellClass += ' sport-cell';
               }
-            } else if (viewMode === 'me' && myShift === 'off') {
+            } else if (viewMode === 'p1' && p1Shift === 'off') {
               badges = '<div class="shift-badge off">' + (mob ? '✓ 休' : '✓ 休假') + '</div>';
-            } else if (viewMode === 'bk' && bkShift === 'off') {
+            } else if (viewMode === 'p2' && p2Shift === 'off') {
               badges = '<div class="shift-badge off">' + (mob ? '✓ 休' : '✓ 休假') + '</div>';
             }
           }
 
           var dk = dateKey(displayYear, displayMonth, displayDay);
           var noteText = notes[dk];
-          var holidayKey = (displayMonth + 1) + '-' + displayDay;
-          var lunarKey = displayYear + '-' + (displayMonth + 1) + '-' + displayDay;
-          var holidayName = holidays[holidayKey] || lunarHolidays[lunarKey];
+          var holidayName = holidayNameFor(displayYear, displayMonth, displayDay);
 
           if (!isOther && holidayName) {
             cellClass += ' holiday-cell';
-            badges += '<div class="holiday-icon">' + holidayName + '</div>';
+            var showName = mob ? shortHoliday(holidayName) : holidayName;
+            badges += '<div class="holiday-icon" title="' + escHtml(holidayName) + '">' + escHtml(showName) + '</div>';
           }
           if (!isOther && noteText) {
             badges += '<div class="note-icon">📝 ' + escHtml(noteText.substring(0, mob ? 3 : 6)) + (noteText.length > (mob ? 3 : 6) ? '...' : '') + '</div>';
           }
 
           html += '<td class="' + cellClass + '"' + (!isOther ? ' data-date="' + dk + '"' : '') + '>';
-          html += '<div class="day-num">' + displayDay + '</div>';
+          var lunar = lunarText(displayYear, displayMonth, displayDay);
+          html += '<div class="day-row"><div class="day-num">' + displayDay + '</div>' + (lunar ? '<div class="lunar-date">' + lunar + '</div>' : '') + '</div>';
           html += badges;
           html += '</td>';
 
@@ -1045,16 +1254,16 @@
         var summaryHtml = '';
         if (viewMode === 'both') {
           summaryHtml =
-            '<div class="summary-card"><div class="value">' + myOffCount + '</div><div class="label">武昌休假天數</div></div>' +
-            '<div class="summary-card"><div class="value">' + bkOffCount + '</div><div class="label">百凱休假天數</div></div>' +
+            '<div class="summary-card"><div class="value">' + p1OffCount + '</div><div class="label">' + escHtml(p1.name) + '休假天數</div></div>' +
+            '<div class="summary-card"><div class="value">' + p2OffCount + '</div><div class="label">' + escHtml(p2.name) + '休假天數</div></div>' +
             '<div class="summary-card"><div class="value" style="color:#16a34a">' + bothOffCount + '</div><div class="label">共同休假天數</div></div>' +
             '<div class="summary-card"><div class="value" style="color:#ea580c">' + sportCount + '</div><div class="label">🏃 運動天數</div></div>';
-        } else if (viewMode === 'me') {
+        } else if (viewMode === 'p1') {
           summaryHtml =
-            '<div class="summary-card"><div class="value">' + myOffCount + '</div><div class="label">武昌休假天數</div></div>';
+            '<div class="summary-card"><div class="value">' + p1OffCount + '</div><div class="label">' + escHtml(p1.name) + '休假天數</div></div>';
         } else {
           summaryHtml =
-            '<div class="summary-card"><div class="value">' + bkOffCount + '</div><div class="label">百凱休假天數</div></div>';
+            '<div class="summary-card"><div class="value">' + p2OffCount + '</div><div class="label">' + escHtml(p2.name) + '休假天數</div></div>';
         }
         $('summaryBox').innerHTML = summaryHtml;
 
@@ -1077,19 +1286,22 @@
         var y = parseInt(parts[0]);
         var m = parseInt(parts[1]) - 1;
         var d = parseInt(parts[2]);
-        var myShift = getShift(data.myPattern, data.myStartDate, y, m, d);
-        var bkShift = getShift(data.bkPattern, data.bkStartDate, y, m, d);
+        var u = cur();
+        var p1Shift = getShift(u.p1.pattern, u.p1.startDate, y, m, d);
+        var p2Shift = getShift(u.p2.pattern, u.p2.startDate, y, m, d);
 
-        var shiftInfo = '武昌: ' + shiftLabel(myShift) + ' ｜ 百凱: ' + shiftLabel(bkShift);
-        if (myShift === 'off' && bkShift === 'off') {
+        var shiftInfo = escHtml(u.p1.name) + ': ' + shiftLabel(p1Shift) + ' ｜ ' + escHtml(u.p2.name) + ': ' + shiftLabel(p2Shift);
+        if (p1Shift === 'off' && p2Shift === 'off') {
           shiftInfo += '  ★ 共同休假';
         }
 
-        var holidayKey = (m + 1) + '-' + d;
-        var lunarKey = y + '-' + (m + 1) + '-' + d;
-        var holidayName = holidays[holidayKey] || lunarHolidays[lunarKey];
+        var lunarDay = lunarFull(y, m, d);
+        if (lunarDay) {
+          shiftInfo += '<br>🌙 農曆：' + lunarDay;
+        }
+        var holidayName = holidayNameFor(y, m, d);
         if (holidayName) {
-          shiftInfo += '<br>🎉 假日：' + holidayName;
+          shiftInfo += '<br>🎉 假日：' + escHtml(holidayName);
         }
 
         var html = '<div class="modal-overlay" id="noteModal">' +
@@ -1115,7 +1327,7 @@
           } else {
             delete notes[dk];
           }
-          saveNotes();
+          saveUsers();
           persistNotes();
           closeModal();
           renderCalendar();
@@ -1125,11 +1337,11 @@
         if ($('btnDelNote')) {
           $('btnDelNote').addEventListener('click', function() {
             delete notes[dk];
-            saveNotes();
-            persistNotes();
-            closeModal();
-            renderCalendar();
-            showToast('已刪除備註');
+          saveUsers();
+          persistNotes();
+          closeModal();
+          renderCalendar();
+          showToast('已刪除備註');
           });
         }
 
@@ -1145,21 +1357,31 @@
       }
 
       function applySettings() {
-        data.myPattern = $('myPattern').value.trim();
-        data.myStartDate = $('myStartDate').value;
-        data.bkPattern = $('bkPattern').value.trim();
-        data.bkStartDate = $('bkStartDate').value;
-        saveData();
+        var u = cur();
+        u.p1.name = $('p1Name').value.trim() || u.p1.name || '我';
+        u.p1.pattern = $('myPattern').value.trim();
+        u.p1.startDate = $('myStartDate').value;
+        u.p2.name = $('p2Name').value.trim() || u.p2.name || '伴侶';
+        u.p2.pattern = $('bkPattern').value.trim();
+        u.p2.startDate = $('bkStartDate').value;
+        saveUsers();
         persistConfig();
+        loadForm();
+        renderUserBar();
         renderCalendar();
         showToast('已更新班表');
       }
 
       function loadForm() {
-        $('myPattern').value = data.myPattern || '';
-        $('myStartDate').value = data.myStartDate || '';
-        $('bkPattern').value = data.bkPattern || '';
-        $('bkStartDate').value = data.bkStartDate || '';
+        var u = cur();
+        $('p1Name').value = u.p1.name || '';
+        $('myPattern').value = u.p1.pattern || '';
+        $('myStartDate').value = u.p1.startDate || '';
+        $('p2Name').value = u.p2.name || '';
+        $('bkPattern').value = u.p2.pattern || '';
+        $('bkStartDate').value = u.p2.startDate || '';
+        $('p1Heading').innerHTML = '<span class="dot dot-me"></span>' + escHtml(u.p1.name || '') + '班表';
+        $('p2Heading').innerHTML = '<span class="dot dot-bk"></span>' + escHtml(u.p2.name || '') + '班表';
       }
 
       $('btnApply').addEventListener('click', applySettings);
@@ -1245,7 +1467,60 @@
         });
       }
 
+      // ===== 使用者選單 =====
+      function renderUserBar() {
+        var sel = $('userSelect');
+        sel.innerHTML = Object.keys(users).map(function(n) {
+          return '<option value="' + escHtml(n) + '"' + (n === currentUser ? ' selected' : '') + '>' + escHtml(n) + '</option>';
+        }).join('');
+        var u = cur();
+        $('viewBtnP1').textContent = '只顯示' + u.p1.name;
+        $('viewBtnP2').textContent = '只顯示' + u.p2.name;
+      }
+
+      function switchUser(name) {
+        if (!users[name]) return;
+        currentUser = name;
+        viewMode = users[name].view || 'both';
+        notes = users[name].notes || {};
+        saveUsers();
+        loadForm();
+        renderUserBar();
+        initViewToggle();
+        renderCalendar();
+        refreshQuiet();
+      }
+
+      $('userSelect').addEventListener('change', function() {
+        switchUser(this.value);
+      });
+
+      $('btnAddUser').addEventListener('click', function() {
+        var name = prompt('輸入新使用者名稱（例如：小明）', '');
+        if (name === null) return;
+        name = name.trim().replace(/:/g, '');
+        if (!name) { showToast('名稱不可空白'); return; }
+        if (users[name]) { showToast('此名稱已存在'); return; }
+        users[name] = { name: name, p1: blankPerson('我'), p2: blankPerson('伴侶'), notes: {}, view: 'both' };
+        switchUser(name);
+        var fields = document.querySelectorAll('.pattern-field');
+        var anyHidden = false;
+        fields.forEach(function(f) { if (f.classList.contains('hidden')) anyHidden = true; });
+        if (anyHidden) $('btnTogglePattern').click();
+        showToast('已新增「' + name + '」，請填寫輪班規則');
+      });
+
+      $('btnDelUser').addEventListener('click', function() {
+        var names = Object.keys(users);
+        if (names.length <= 1) { showToast('至少保留一位使用者'); return; }
+        if (!confirm('確定刪除使用者「' + currentUser + '」？\n（雲端資料會保留，日後用相同名稱重建可找回）')) return;
+        delete users[currentUser];
+        switchUser(Object.keys(users)[0]);
+        showToast('已刪除');
+      });
+
       loadForm();
+      renderUserBar();
       initViewToggle();
       renderCalendar();
       startApp();

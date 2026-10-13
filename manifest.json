@@ -1,7 +1,7 @@
 {
-  "name": "武昌百凱輪班表",
+  "name": "輪班班表",
   "short_name": "輪班表",
-  "description": "武昌 & 百凱班表合併顯示，輕鬆找出共同放假的日子",
+  "description": "兩人班表合併顯示，輕鬆找出共同放假的日子",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

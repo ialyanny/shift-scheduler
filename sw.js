@@ -1,11 +1,12 @@
-const CACHE_NAME = 'shift-scheduler-v1';
+const CACHE_NAME = 'shift-scheduler-v2';
 const CORE_ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
-  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
+  'https://cdn.jsdelivr.net/npm/lunar-javascript@1/lunar.min.js'
 ];
 
 self.addEventListener('install', (event) => {
@@ -28,7 +29,10 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(req.url);
 
-  if (url.origin === location.origin) {
+  // Supabase API 永遠走網路（避免快取舊資料）
+  if (url.hostname.indexOf('supabase.co') !== -1) return;
+
+  if (url.origin === location.origin || url.hostname === 'cdn.jsdelivr.net') {
     event.respondWith(
       fetch(req)
         .then((res) => {
