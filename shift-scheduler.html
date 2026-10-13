@@ -724,6 +724,22 @@
       gap: 8px;
       margin-bottom: 6px;
     }
+    .ask-input {
+      width: 100%;
+      padding: 11px 14px;
+      font-size: 15px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+      background: #fff;
+      font-family: inherit;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .ask-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
     .modal-btns {
       display: flex;
       gap: 8px;
@@ -969,6 +985,8 @@
       var sessionKeys = {};
       // unlockPrompted: 本 session 已提示過解鎖的 owner
       var unlockPrompted = {};
+      // autoPublished: 本 session 已自動註冊過的 owner（雲端無資料時上傳一次，讓群組看得到）
+      var autoPublished = {};
       currentYear = now.getFullYear();
       currentMonth = now.getMonth();
 
@@ -1260,6 +1278,7 @@
           }
         });
         memberList = d.members || [];
+        maybeAutoPublish();
         var before = sigOf(u);
         var myEnc = collectMyEnc(cfg, d.notesRows, prefix);
         // 鎖定狀態：雲端 prefs 或出現密文都算鎖定（雙向自癒）
@@ -1323,11 +1342,26 @@
         finishApply(u, before);
       }
 
+      // 雲端完全沒有我的資料時自動上傳一次（註冊群組成員＋同步姓名），
+      // 之後靠正常儲存更新。已鎖定則跳過（等使用者手動儲存，避免沒密碼亂傳）。
+      function maybeAutoPublish() {
+        if (viewing || autoPublished[currentUser]) return;
+        var u = users[currentUser];
+        if (!u || u.locked) return;
+        var prefix = ownerPrefix();
+        var hasMine = cloudCache.configs.some(function (r) { return r.id.indexOf(prefix) === 0; });
+        if (hasMine) { autoPublished[currentUser] = true; return; }
+        autoPublished[currentUser] = true;
+        persistConfig();
+        persistNotes();
+      }
+
       function promptUnlockSelf() {
         if (!cryptoOK()) { showToast('此環境不支援解密，請用 HTTPS 開啟'); return; }
-        var pw = prompt('你的班表已設密碼，請輸入以解鎖同步：', '');
-        if (!pw) return;
-        tryUnlockSelf(pw);
+        askPassword('你的班表已設密碼').then(function (pw) {
+          if (!pw) return;
+          tryUnlockSelf(pw);
+        });
       }
 
       function tryUnlockSelf(pw) {
@@ -1394,32 +1428,33 @@
         if (!cryptoOK()) { showToast('此環境不支援加密，請用 HTTPS 開啟'); return; }
         var u = users[currentUser];
         if (!u.locked) {
-          var pw1 = prompt('設定密碼（至少 4 碼，忘記將無法找回）：', '');
-          if (!pw1) return;
-          if (pw1.length < 4) { showToast('密碼至少 4 碼'); return; }
-          var pw2 = prompt('再輸入一次確認：', '');
-          if (pw1 !== pw2) { showToast('兩次輸入不同'); return; }
-          u.locked = true;
-          sessionKeys[currentUser] = pw1;
-          saveUsers();
-          persistConfig();
-          persistNotes();
-          renderPrivacy();
-          showToast('已設定密碼，雲端資料已加密');
-        } else {
-          var curPw = prompt('先輸入目前密碼：', '');
-          if (!curPw) return;
-          verifyMyPassword(curPw).then(function (ok) {
-            if (!ok) { showToast('目前密碼錯誤'); return; }
-            var npw1 = prompt('輸入新密碼（至少 4 碼）：', '');
-            if (!npw1) return;
-            if (npw1.length < 4) { showToast('密碼至少 4 碼'); return; }
-            var npw2 = prompt('再輸入一次確認：', '');
-            if (npw1 !== npw2) { showToast('兩次輸入不同'); return; }
-            sessionKeys[currentUser] = npw1;
+          askPassword2('設定密碼（忘記將無法找回）').then(function (pair) {
+            if (!pair) return;
+            if (!pair[0] || pair[0].length < 4) { showToast('密碼至少 4 碼'); return; }
+            if (pair[0] !== pair[1]) { showToast('兩次輸入不同'); return; }
+            u.locked = true;
+            sessionKeys[currentUser] = pair[0];
+            saveUsers();
             persistConfig();
             persistNotes();
-            showToast('密碼已變更，資料已重新加密');
+            renderPrivacy();
+            showToast('已設定密碼，雲端資料已加密');
+          });
+        } else {
+          askPassword('先輸入目前密碼').then(function (curPw) {
+            if (!curPw) return;
+            return verifyMyPassword(curPw).then(function (ok) {
+              if (!ok) { showToast('目前密碼錯誤'); return; }
+              return askPassword2('輸入新密碼').then(function (pair) {
+                if (!pair) return;
+                if (!pair[0] || pair[0].length < 4) { showToast('密碼至少 4 碼'); return; }
+                if (pair[0] !== pair[1]) { showToast('兩次輸入不同'); return; }
+                sessionKeys[currentUser] = pair[0];
+                persistConfig();
+                persistNotes();
+                showToast('密碼已變更，資料已重新加密');
+              });
+            });
           });
         }
       });
@@ -1428,21 +1463,25 @@
         if (viewing) return;
         var u = users[currentUser];
         if (!u.locked) return;
-        var pw = prompt('輸入目前密碼以移除保護：', '');
-        if (!pw) return;
-        verifyMyPassword(pw).then(function (ok) {
-          if (!ok) {
-            if (confirm('密碼不正確。\n\n若已忘記密碼，可清除雲端加密資料並重設（本機資料保留，會重新上傳為明文）。\n\n確定要清除重設嗎？')) resetOwnerCloud();
-            return;
-          }
-          u.locked = false;
-          u.encRows = {};
-          delete sessionKeys[currentUser];
-          saveUsers();
-          persistConfig();
-          persistNotes();
-          renderPrivacy();
-          showToast('已移除密碼保護');
+        askPassword('輸入目前密碼以移除保護').then(function (pw) {
+          if (!pw) return;
+          return verifyMyPassword(pw).then(function (ok) {
+            if (!ok) {
+              return askConfirm('密碼不正確',
+                '若已忘記密碼，可清除雲端加密資料並重設。<br>（本機資料保留，會重新上傳為明文）',
+                '清除重設').then(function (go) {
+                if (go) resetOwnerCloud();
+              });
+            }
+            u.locked = false;
+            u.encRows = {};
+            delete sessionKeys[currentUser];
+            saveUsers();
+            persistConfig();
+            persistNotes();
+            renderPrivacy();
+            showToast('已移除密碼保護');
+          });
         });
       });
 
@@ -1510,16 +1549,20 @@
         var r = rowsForOwner(owner);
         if (m.locked) {
           if (!cryptoOK()) { showToast('此環境不支援解密'); return; }
-          var pw = sessionKeys[owner] || prompt('「' + owner + '」已設密碼，請輸入：', '');
-          if (!pw) return;
-          decryptOwner(collectMyEnc(r.cfg, r.noteRows, r.prefix), pw).then(function (plain) {
-            if (!plain) { showToast('密碼錯誤'); return; }
-            sessionKeys[owner] = pw;
-            enterViewing({
-              owner: owner,
-              p1: { name: (plain.meta && plain.meta.a) || owner, pattern: plain.me ? plain.me.p : '', startDate: plain.me ? plain.me.s : '' },
-              p2: { name: (plain.meta && plain.meta.b) || '', pattern: plain.bk ? plain.bk.p : '', startDate: plain.bk ? plain.bk.s : '' },
-              notes: plain.notes, view: 'both'
+          var keyP = sessionKeys[owner]
+            ? Promise.resolve(sessionKeys[owner])
+            : askPassword('「' + owner + '」已設密碼', '查看');
+          keyP.then(function (pw) {
+            if (!pw) return;
+            decryptOwner(collectMyEnc(r.cfg, r.noteRows, r.prefix), pw).then(function (plain) {
+              if (!plain) { showToast('密碼錯誤'); return; }
+              sessionKeys[owner] = pw;
+              enterViewing({
+                owner: owner,
+                p1: { name: (plain.meta && plain.meta.a) || owner, pattern: plain.me ? plain.me.p : '', startDate: plain.me ? plain.me.s : '' },
+                p2: { name: (plain.meta && plain.meta.b) || '', pattern: plain.bk ? plain.bk.p : '', startDate: plain.bk ? plain.bk.s : '' },
+                notes: plain.notes, view: 'both'
+              });
             });
           });
         } else {
@@ -1605,20 +1648,21 @@
       function ensureKey() {
         var u = users[currentUser];
         if (!u.locked) return Promise.resolve(null);
-        if (!cryptoOK()) { showToast('此環境不支援加密，請用 HTTPS 開啟'); return Promise.resolve(undefined); }
+        if (!cryptoOK()) { showToast('此環境不支援加密，請用 HTTPS 開啟'); return Promise.resolve(null); }
         if (sessionKeys[currentUser]) return Promise.resolve(sessionKeys[currentUser]);
-        var pw = prompt('你的班表已設密碼，請輸入以上傳加密資料：', '');
-        if (!pw) { showToast('已取消，僅存本機'); return Promise.resolve(undefined); }
-        sessionKeys[currentUser] = pw;
-        return Promise.resolve(pw);
+        return askPassword('你的班表已設密碼', '上傳').then(function (pw) {
+          if (!pw) { showToast('已取消，僅存本機'); return null; }
+          sessionKeys[currentUser] = pw;
+          return pw;
+        });
       }
 
       function persistConfig() {
         if (!sb || viewing) return;
         lastLocalSave = Date.now();
         ensureKey().then(function (key) {
-          if (key === undefined) return;
           var u = users[currentUser];
+          if (!key && u.locked) return;
           var prefix = ownerPrefix();
           if (!u.locked) {
             upsertConfig([
@@ -1654,8 +1698,8 @@
         if (!sb || viewing) return;
         lastLocalSave = Date.now();
         ensureKey().then(function (key) {
-          if (key === undefined) return;
           var u = users[currentUser];
+          if (!key && u.locked) return;
           var prefix = ownerPrefix();
           var keys = Object.keys(notes);
           if (!u.locked) {
@@ -2029,6 +2073,56 @@
         $('modalContainer').innerHTML = '';
       }
 
+      // ===== 通用輸入框（取代系統 prompt/confirm，PWA 與內建瀏覽器可用）=====
+      // askModal 回傳 Promise：確定 -> 輸入值陣列；取消/點背景 -> null
+      function askModal(title, bodyHtml, okText) {
+        return new Promise(function (resolve) {
+          $('modalContainer').innerHTML = '<div class="modal-overlay" id="noteModal">' +
+            '<div class="modal">' +
+            '<h3>' + escHtml(title) + '</h3>' + bodyHtml +
+            '<div class="modal-btns">' +
+            '<button type="button" id="askCancel">取消</button>' +
+            '<button type="button" class="btn-save" id="askOk">' + escHtml(okText || '確定') + '</button>' +
+            '</div>' +
+            '</div>' +
+            '</div>';
+          function done(v) { closeModal(); resolve(v); }
+          $('askCancel').addEventListener('click', function() { done(null); });
+          $('askOk').addEventListener('click', function() {
+            var vals = [];
+            $('modalContainer').querySelectorAll('[data-ask]').forEach(function(el) { vals.push(el.value); });
+            done(vals);
+          });
+          $('noteModal').addEventListener('click', function(e) { if (e.target === $('noteModal')) done(null); });
+          var first = $('modalContainer').querySelector('[data-ask]');
+          if (first) first.focus();
+        });
+      }
+
+      function askText(title, placeholder, okText) {
+        return askModal(title,
+          '<input data-ask class="ask-input" type="text" placeholder="' + escHtml(placeholder || '') + '">',
+          okText).then(function(v) { return v ? v[0].trim() : null; });
+      }
+
+      function askPassword(title, okText) {
+        return askModal(title,
+          '<input data-ask class="ask-input" type="password" placeholder="請輸入密碼" autocomplete="off">',
+          okText || '確定').then(function(v) { return v ? v[0] : null; });
+      }
+
+      function askPassword2(title) {
+        return askModal(title,
+          '<input data-ask class="ask-input" type="password" placeholder="新密碼（至少 4 碼）" autocomplete="new-password">' +
+          '<input data-ask class="ask-input" type="password" placeholder="再輸入一次確認" autocomplete="new-password">',
+          '確定').then(function(v) { return v ? [v[0] || '', v[1] || ''] : null; });
+      }
+
+      function askConfirm(title, msgHtml, okText) {
+        return askModal(title, '<div class="shift-info">' + msgHtml + '</div>', okText || '確定')
+          .then(function(v) { return !!v; });
+      }
+
       function openJumpModal() {
         var years = '';
         for (var y = currentYear - 10; y <= currentYear + 10; y++) {
@@ -2219,27 +2313,32 @@
       });
 
       $('btnAddUser').addEventListener('click', function() {
-        var name = prompt('輸入新使用者名稱（例如：小明）', '');
-        if (name === null) return;
-        name = name.trim().replace(/:/g, '');
-        if (!name) { showToast('名稱不可空白'); return; }
-        if (users[name]) { showToast('此名稱已存在'); return; }
-        users[name] = { name: name, p1: blankPerson('我'), p2: blankPerson('伴侶'), notes: {}, view: 'both', visible: true, locked: false, encRows: {} };
-        switchUser(name);
-        var fields = document.querySelectorAll('.pattern-field');
-        var anyHidden = false;
-        fields.forEach(function(f) { if (f.classList.contains('hidden')) anyHidden = true; });
-        if (anyHidden) $('btnTogglePattern').click();
-        showToast('已新增「' + name + '」，請填寫輪班規則');
+        askText('新增使用者', '例如：小明', '新增').then(function(name) {
+          if (!name) return;
+          name = name.replace(/:/g, '');
+          if (!name) { showToast('名稱不可空白'); return; }
+          if (users[name]) { showToast('此名稱已存在'); return; }
+          users[name] = { name: name, p1: blankPerson('我'), p2: blankPerson('伴侶'), notes: {}, view: 'both', visible: true, locked: false, encRows: {} };
+          switchUser(name);
+          var fields = document.querySelectorAll('.pattern-field');
+          var anyHidden = false;
+          fields.forEach(function(f) { if (f.classList.contains('hidden')) anyHidden = true; });
+          if (anyHidden) $('btnTogglePattern').click();
+          showToast('已新增「' + name + '」，請填寫輪班規則');
+        });
       });
 
       $('btnDelUser').addEventListener('click', function() {
         var names = Object.keys(users);
         if (names.length <= 1) { showToast('至少保留一位使用者'); return; }
-        if (!confirm('確定刪除使用者「' + currentUser + '」？\n（雲端資料會保留，日後用相同名稱重建可找回）')) return;
-        delete users[currentUser];
-        switchUser(Object.keys(users)[0]);
-        showToast('已刪除');
+        askConfirm('刪除使用者',
+          '確定刪除「' + escHtml(currentUser) + '」？<br>（雲端資料會保留，日後用相同名稱重建可找回）',
+          '刪除').then(function(ok) {
+          if (!ok) return;
+          delete users[currentUser];
+          switchUser(Object.keys(users)[0]);
+          showToast('已刪除');
+        });
       });
 
       loadForm();
