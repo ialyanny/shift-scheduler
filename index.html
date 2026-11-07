@@ -2230,15 +2230,71 @@
         });
         $('fdClose').addEventListener('click', closeModal);
         $('fdCopy').addEventListener('click', function () {
-          var who = $('fdWho').value;
-          var title = (who === 'both' ? u.p1.name + ' & ' + u.p2.name + ' 共同休假' : u[who].name + ' 休假') +
-            '（' + fmtLocal(lastFrom).replace(/-/g, '/') + '～' + fmtLocal(lastTo).replace(/-/g, '/') + '）';
-          var lines = lastRuns.map(function (r) {
-            return (r.days.length === 1 ? mdw(r.start) : mdw(r.start) + '～' + mdw(r.end)) + ' ' + r.days.length + '天';
-          });
-          copyText(title + '\n' + (lines.length ? lines.join('\n') : '沒有符合條件的休假日'))
+          copyText(buildShareText())
             .then(function () { showToast('已複製，可以貼到 LINE'); }, function () { showToast('複製失敗'); });
         });
+
+        // 貼到 LINE 的文字：月份分組＋圖示
+        var MONTH_ICON = ['🎍', '🧧', '🌸', '🌷', '🌿', '🌊', '🍉', '🌻', '🎑', '🍁', '🍂', '🎄'];
+        function runIcon(n) { return n >= 3 ? '🏖️' : n === 2 ? '🌴' : '☀️'; }
+        function buildShareText() {
+          var who = $('fdWho').value;
+          var markerOnly = who === 'both' && act.on && $('fdMarker').checked;
+          var SEP = '━━━━━━━━━━━━';
+          var out = [];
+          out.push(who === 'both'
+            ? '💑 ' + u.p1.name + ' & ' + u.p2.name + '｜共同休假'
+            : '🙋 ' + u[who].name + '｜休假日');
+          out.push('🗓️ ' + fmtLocal(lastFrom).replace(/-/g, '/') + ' ～ ' + fmtLocal(lastTo).replace(/-/g, '/'));
+          if (state.minRun > 1) out.push('🔎 連休 ' + state.minRun + ' 天以上');
+          if (markerOnly) out.push('🔎 只看' + act.icon + act.name + '的日子');
+          out.push(SEP);
+          if (!lastRuns.length) {
+            out.push('😢 這段期間沒有符合條件的休假日');
+          } else {
+            var curKey = '';
+            lastRuns.forEach(function (r) {
+              var key = r.start.getFullYear() + '-' + r.start.getMonth();
+              if (key !== curKey) {
+                if (curKey) out.push('');
+                curKey = key;
+                var showYear = r.start.getFullYear() !== lastFrom.getFullYear() || lastTo.getFullYear() !== lastFrom.getFullYear();
+                out.push(MONTH_ICON[r.start.getMonth()] + ' ' + (showYear ? r.start.getFullYear() + ' 年 ' : '') + (r.start.getMonth() + 1) + ' 月');
+              }
+              var n = r.days.length;
+              var mk = '';
+              if (who === 'both' && act.on) {
+                var k = r.days.filter(function (dt) { return markerOk(u, act, dt.getFullYear(), dt.getMonth(), dt.getDate()); }).length;
+                if (k) mk = ' ' + act.icon + (k > 1 && k < n ? '×' + k : '');
+              }
+              out.push(runIcon(n) + ' ' + (n === 1 ? mdw(r.start) : mdw(r.start) + '～' + mdw(r.end)) + '｜' + n + ' 天' + mk);
+              r.days.forEach(function (dt) {
+                var y = dt.getFullYear(), m = dt.getMonth(), d = dt.getDate(), md = (m + 1) + '/' + d;
+                var hn = holidayNameFor(y, m, d);
+                if (hn) out.push('　　🎉 ' + md + ' ' + hn);
+                ['p1', 'p2'].forEach(function (pk) {
+                  var e = eventOf(u, pk, y, m, d);
+                  if (e && e.type === 'leave' && (who === 'both' || who === pk)) out.push('　　🗓️ ' + md + ' ' + u[pk].name + '請' + e.kind);
+                });
+                var nt = (u.notes || {})[dateKey(y, m, d)];
+                if (nt) out.push('　　📝 ' + md + ' ' + nt.replace(/\s+/g, ' '));
+              });
+            });
+            out.push(SEP);
+            var total = lastRuns.reduce(function (s, r) { return s + r.days.length; }, 0);
+            var longest = lastRuns.reduce(function (mx, r) { return Math.max(mx, r.days.length); }, 0);
+            out.push('✅ 共 ' + total + ' 天・' + lastRuns.length + ' 段' + (longest > 1 ? '・最長連休 ' + longest + ' 天' : ''));
+            if (who === 'both' && act.on && !markerOnly) {
+              var mt = 0;
+              lastRuns.forEach(function (r) {
+                mt += r.days.filter(function (dt) { return markerOk(u, act, dt.getFullYear(), dt.getMonth(), dt.getDate()); }).length;
+              });
+              if (mt) out.push(act.icon + ' 適合' + act.name + ' ' + mt + ' 天');
+            }
+          }
+          out.push('📅 來自「輪班班表」');
+          return out.join('\n');
+        }
         $('noteModal').addEventListener('click', function (e) { if (e.target === $('noteModal')) closeModal(); });
         setRange('3m');
       }
