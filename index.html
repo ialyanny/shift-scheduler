@@ -343,6 +343,55 @@
     .leave-person summary { cursor: pointer; color: var(--primary); font-weight: 600; }
     .leave-person ul { list-style: none; margin-top: 6px; max-height: 220px; overflow-y: auto; }
     .leave-person li { padding: 4px 0; border-bottom: 1px dashed var(--border); }
+    .btn-finder {
+      display: block;
+      width: 100%;
+      padding: 11px;
+      margin: -6px 0 16px;
+      border-radius: 10px;
+      border: 1px solid #a7f3d0;
+      background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+      color: #047857;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .btn-finder:hover { box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+    .modal.finder { max-width: 520px; }
+    .fd-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; font-size: 13px; }
+    .fd-row > label.fd-lbl { width: 44px; font-weight: 700; color: var(--muted); flex: none; }
+    .fd-row select, .fd-row input[type="date"] {
+      padding: 8px 10px;
+      font-size: 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      font-family: inherit;
+      color: var(--text);
+    }
+    .fd-row input[type="date"] { flex: 1; min-width: 0; }
+    .fd-row select.fd-who { flex: 1; min-width: 0; }
+    .fd-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .fd-chips button {
+      padding: 5px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .fd-chips button.active { background: #059669; border-color: #059669; color: #fff; }
+    .fd-row label.chk { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .fd-sum { font-size: 14px; font-weight: 700; color: #047857; margin: 6px 0 8px; }
+    .fd-list { list-style: none; max-height: 46vh; overflow-y: auto; border-top: 1px solid var(--border); }
+    .fd-list li { padding: 9px 4px; border-bottom: 1px dashed var(--border); cursor: pointer; font-size: 14px; }
+    .fd-list li:hover { background: #f0fdf4; }
+    .fd-list .fd-days { display: inline-block; min-width: 44px; margin-left: 6px; padding: 1px 8px; font-size: 12px; font-weight: 700; border-radius: 10px; background: #d1fae5; color: #047857; text-align: center; }
+    .fd-list .fd-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .fd-empty { padding: 18px 0; text-align: center; color: var(--muted); font-size: 14px; }
     .leave-person h3 .dot-me { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
     .leave-person h3 .dot-bk { background: linear-gradient(135deg, #a78bfa, #7c3aed); }
     .check-row {
@@ -980,6 +1029,7 @@
         <button type="button" data-view="p1" id="viewBtnP1">只顯示武昌</button>
         <button type="button" data-view="p2" id="viewBtnP2">只顯示百凱</button>
       </div>
+      <button type="button" class="btn-finder" id="btnFinder">🔍 找休假日（未來共同休假、指定區間）</button>
 
       <div class="month-nav">
         <button type="button" class="nav-btn" id="btnPrev">◀</button>
@@ -1698,13 +1748,7 @@
                 }
               });
               if (act.on) {
-                var prevP1Shift = effShift(u, 'p1', displayYear, displayMonth, displayDay - 1);
-                var prevP2Shift = effShift(u, 'p2', displayYear, displayMonth, displayDay - 1);
-                var nextP1Shift = effShift(u, 'p1', displayYear, displayMonth, displayDay + 1);
-                var nextP2Shift = effShift(u, 'p2', displayYear, displayMonth, displayDay + 1);
-                var blocked = (act.p1PrevNight && prevP1Shift === 'night') || (act.p2PrevNight && prevP2Shift === 'night') ||
-                  (act.p1NextDay && nextP1Shift === 'day') || (act.p2NextDay && nextP2Shift === 'day');
-                if (!blocked) {
+                if (markerOk(u, act, displayYear, displayMonth, displayDay)) {
                   badges += '<div class="sport-icon" title="' + escHtml(act.name) + '">' + escHtml(act.icon) + '</div>';
                   sportCount++;
                   cellClass += ' sport-cell';
@@ -2043,6 +2087,162 @@
         $('modalContainer').innerHTML = '';
       }
 
+      // 兩人都休假的日子，是否符合「共同休假標記」的條件
+      function markerOk(u, act, y, m, d) {
+        var prevP1 = effShift(u, 'p1', y, m, d - 1), prevP2 = effShift(u, 'p2', y, m, d - 1);
+        var nextP1 = effShift(u, 'p1', y, m, d + 1), nextP2 = effShift(u, 'p2', y, m, d + 1);
+        return !((act.p1PrevNight && prevP1 === 'night') || (act.p2PrevNight && prevP2 === 'night') ||
+          (act.p1NextDay && nextP1 === 'day') || (act.p2NextDay && nextP2 === 'day'));
+      }
+
+      // ===== 找休假日 =====
+      var WEEK = '日一二三四五六';
+      function addDays(dt, n) { return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate() + n); }
+      function mdw(dt) { return (dt.getMonth() + 1) + '/' + dt.getDate() + '（' + WEEK.charAt(dt.getDay()) + '）'; }
+
+      // 回傳符合條件的連續休假區段
+      function findOffRuns(u, who, from, to, minRun, markerOnly) {
+        var act = actOf(u);
+        var runs = [], run = null;
+        for (var dt = from; dt <= to; dt = addDays(dt, 1)) {
+          var y = dt.getFullYear(), m = dt.getMonth(), d = dt.getDate();
+          var s1 = effShift(u, 'p1', y, m, d), s2 = effShift(u, 'p2', y, m, d);
+          var ok;
+          if (who === 'both') ok = s1 === 'off' && s2 === 'off' && (!markerOnly || markerOk(u, act, y, m, d));
+          else ok = (who === 'p1' ? s1 : s2) === 'off';
+          if (ok) {
+            if (!run) { run = { start: dt, end: dt, days: [] }; runs.push(run); }
+            run.end = dt;
+            run.days.push(dt);
+          } else {
+            run = null;
+          }
+        }
+        return runs.filter(function (r) { return r.days.length >= minRun; });
+      }
+
+      function openFinder() {
+        var u = cur();
+        var hasP2 = !!u.p2.pattern;
+        var who0 = viewMode === 'p1' || viewMode === 'p2' ? viewMode : (hasP2 ? 'both' : 'p1');
+        var today = new Date();
+        var t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        var whoOpts = (hasP2 && u.p1.pattern ? '<option value="both">' + escHtml(u.p1.name + ' & ' + u.p2.name) + ' 共同休假</option>' : '') +
+          (u.p1.pattern ? '<option value="p1">只看 ' + escHtml(u.p1.name) + ' 休假</option>' : '') +
+          (hasP2 ? '<option value="p2">只看 ' + escHtml(u.p2.name) + ' 休假</option>' : '');
+        var act = actOf(u);
+
+        $('modalContainer').innerHTML = '<div class="modal-overlay" id="noteModal"><div class="modal finder">' +
+          '<h3>🔍 找休假日</h3>' +
+          '<div class="fd-row"><label class="fd-lbl">對象</label><select class="fd-who" id="fdWho">' + whoOpts + '</select></div>' +
+          '<div class="fd-row"><label class="fd-lbl">區間</label><input type="date" id="fdFrom"> ～ <input type="date" id="fdTo"></div>' +
+          '<div class="fd-row"><label class="fd-lbl"></label><div class="fd-chips" id="fdPresets">' +
+            '<button type="button" data-p="1m">未來 1 個月</button><button type="button" data-p="3m">3 個月</button>' +
+            '<button type="button" data-p="6m">半年</button><button type="button" data-p="ye">今年剩下</button><button type="button" data-p="ny">明年整年</button>' +
+          '</div></div>' +
+          '<div class="fd-row"><label class="fd-lbl">連休</label><div class="fd-chips" id="fdMin">' +
+            [1, 2, 3, 4, 5].map(function (n) { return '<button type="button" data-n="' + n + '">' + (n === 1 ? '不限' : '至少 ' + n + ' 天') + '</button>'; }).join('') +
+          '</div></div>' +
+          '<div class="fd-row" id="fdMarkerRow"><label class="fd-lbl"></label><label class="chk"><input type="checkbox" id="fdMarker"> 只看「' + escHtml(act.icon + ' ' + act.name) + '」的日子</label></div>' +
+          '<div class="fd-sum" id="fdSum"></div>' +
+          '<ul class="fd-list" id="fdList"></ul>' +
+          '<div class="modal-btns"><button type="button" id="fdCopy">複製結果</button><button type="button" class="btn-save" id="fdClose">關閉</button></div>' +
+          '</div></div>';
+
+        var state = { minRun: 1 };
+        $('fdWho').value = who0;
+        function setRange(p) {
+          var to;
+          if (p === '1m') to = new Date(t0.getFullYear(), t0.getMonth() + 1, t0.getDate());
+          else if (p === '3m') to = new Date(t0.getFullYear(), t0.getMonth() + 3, t0.getDate());
+          else if (p === '6m') to = new Date(t0.getFullYear(), t0.getMonth() + 6, t0.getDate());
+          else if (p === 'ye') to = new Date(t0.getFullYear(), 11, 31);
+          var from = t0;
+          if (p === 'ny') { from = new Date(t0.getFullYear() + 1, 0, 1); to = new Date(t0.getFullYear() + 1, 11, 31); }
+          $('fdFrom').value = fmtLocal(from);
+          $('fdTo').value = fmtLocal(to);
+          $('fdPresets').querySelectorAll('button').forEach(function (b) { b.classList.toggle('active', b.dataset.p === p); });
+          run();
+        }
+        var lastRuns = [], lastFrom, lastTo;
+        function run() {
+          var who = $('fdWho').value;
+          $('fdMarkerRow').style.display = who === 'both' && act.on ? '' : 'none';
+          $('fdMin').querySelectorAll('button').forEach(function (b) { b.classList.toggle('active', Number(b.dataset.n) === state.minRun); });
+          if (!$('fdFrom').value || !$('fdTo').value) return;
+          var from = parseDate($('fdFrom').value), to = parseDate($('fdTo').value);
+          if (to < from) { var tmp = from; from = to; to = tmp; }
+          var maxTo = new Date(from.getFullYear() + 2, from.getMonth(), from.getDate());
+          if (to > maxTo) to = maxTo; // 最多查兩年
+          var runs = findOffRuns(u, who, from, to, state.minRun, who === 'both' && act.on && $('fdMarker').checked);
+          lastRuns = runs; lastFrom = from; lastTo = to;
+          var total = runs.reduce(function (s, r) { return s + r.days.length; }, 0);
+          $('fdSum').textContent = runs.length
+            ? '共 ' + total + ' 天，' + runs.length + ' 段' + (state.minRun > 1 ? '（連休 ' + state.minRun + ' 天以上）' : '')
+            : '';
+          if (!runs.length) {
+            $('fdList').innerHTML = '<li class="fd-empty">這段期間沒有符合條件的休假日</li>';
+            return;
+          }
+          $('fdList').innerHTML = runs.map(function (r, i) {
+            var label = r.days.length === 1 ? mdw(r.start) : mdw(r.start) + ' ～ ' + mdw(r.end);
+            if (r.start.getFullYear() !== t0.getFullYear() || r.end.getFullYear() !== r.start.getFullYear()) label = r.start.getFullYear() + '/' + label;
+            var subs = [];
+            r.days.forEach(function (dt) {
+              var hn = holidayNameFor(dt.getFullYear(), dt.getMonth(), dt.getDate());
+              if (hn) subs.push('🎉 ' + (dt.getMonth() + 1) + '/' + dt.getDate() + ' ' + hn);
+              var nt = (u.notes || {})[dateKey(dt.getFullYear(), dt.getMonth(), dt.getDate())];
+              if (nt) subs.push('📝 ' + (dt.getMonth() + 1) + '/' + dt.getDate() + ' ' + (nt.length > 12 ? nt.slice(0, 12) + '…' : nt));
+              ['p1', 'p2'].forEach(function (k) {
+                var e = eventOf(u, k, dt.getFullYear(), dt.getMonth(), dt.getDate());
+                if (e && e.type === 'leave') subs.push('🗓️ ' + (dt.getMonth() + 1) + '/' + dt.getDate() + ' ' + u[k].name + e.kind);
+              });
+            });
+            var marks = '';
+            if (who === 'both' && act.on && !$('fdMarker').checked) {
+              var n = r.days.filter(function (dt) { return markerOk(u, act, dt.getFullYear(), dt.getMonth(), dt.getDate()); }).length;
+              if (n) marks = ' ' + act.icon + (n > 1 ? '×' + n : '');
+            }
+            return '<li data-i="' + i + '">' + escHtml(label) + '<span class="fd-days">' + r.days.length + ' 天</span>' + escHtml(marks) +
+              (subs.length ? '<div class="fd-sub">' + escHtml(subs.join('　')) + '</div>' : '') + '</li>';
+          }).join('');
+          $('fdList').querySelectorAll('li[data-i]').forEach(function (li) {
+            li.addEventListener('click', function () {
+              var r = lastRuns[Number(li.dataset.i)];
+              currentYear = r.start.getFullYear();
+              currentMonth = r.start.getMonth();
+              closeModal();
+              renderCalendar();
+              document.querySelector('.calendar').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+          });
+        }
+
+        $('fdPresets').querySelectorAll('button').forEach(function (b) { b.addEventListener('click', function () { setRange(b.dataset.p); }); });
+        $('fdMin').querySelectorAll('button').forEach(function (b) {
+          b.addEventListener('click', function () { state.minRun = Number(b.dataset.n); run(); });
+        });
+        ['fdWho', 'fdFrom', 'fdTo', 'fdMarker'].forEach(function (id) {
+          $(id).addEventListener('change', function () {
+            if (id === 'fdFrom' || id === 'fdTo') $('fdPresets').querySelectorAll('button').forEach(function (b) { b.classList.remove('active'); });
+            run();
+          });
+        });
+        $('fdClose').addEventListener('click', closeModal);
+        $('fdCopy').addEventListener('click', function () {
+          var who = $('fdWho').value;
+          var title = (who === 'both' ? u.p1.name + ' & ' + u.p2.name + ' 共同休假' : u[who].name + ' 休假') +
+            '（' + fmtLocal(lastFrom).replace(/-/g, '/') + '～' + fmtLocal(lastTo).replace(/-/g, '/') + '）';
+          var lines = lastRuns.map(function (r) {
+            return (r.days.length === 1 ? mdw(r.start) : mdw(r.start) + '～' + mdw(r.end)) + ' ' + r.days.length + '天';
+          });
+          copyText(title + '\n' + (lines.length ? lines.join('\n') : '沒有符合條件的休假日'))
+            .then(function () { showToast('已複製，可以貼到 LINE'); }, function () { showToast('複製失敗'); });
+        });
+        $('noteModal').addEventListener('click', function (e) { if (e.target === $('noteModal')) closeModal(); });
+        setRange('3m');
+      }
+
       function openJumpModal() {
         var years = '';
         for (var y = currentYear - 10; y <= currentYear + 10; y++) {
@@ -2190,6 +2390,7 @@
 
       $('monthTitle').title = '點選可直接選擇年月';
       $('monthTitle').addEventListener('click', openJumpModal);
+      $('btnFinder').addEventListener('click', openFinder);
 
       // 跨過手機／平板與桌機寬度時重畫（切換長短標籤）
       var lastMobile = isMobile();
