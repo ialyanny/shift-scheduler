@@ -90,3 +90,24 @@ grant select, insert, update, delete on public.shift_profiles, public.shift_ws_n
 
 -- v2.1：每組使用者的自訂設定（例如共同休假標記）
 alter table public.shift_profiles add column if not exists extra jsonb not null default '{}'::jsonb;
+
+-- v2.2：請假／加班紀錄（每人每天一筆）；年度額度存在 shift_profiles.extra.quota
+create table if not exists public.shift_ws_events (
+  ws text not null check (length(ws) >= 24),
+  profile_id text not null,
+  person text not null check (person in ('p1','p2')),
+  date_key text not null,
+  type text not null check (type in ('leave','ot')),
+  kind text not null default '',
+  days numeric not null default 0,
+  shift text not null default '',
+  hours numeric not null default 0,
+  updated_at bigint not null default 0,
+  primary key (ws, profile_id, person, date_key)
+);
+alter table public.shift_ws_events enable row level security;
+drop policy if exists "own workspace" on public.shift_ws_events;
+create policy "own workspace" on public.shift_ws_events
+  for all to anon, authenticated
+  using (ws = public.shift_req_ws()) with check (ws = public.shift_req_ws());
+grant select, insert, update, delete on public.shift_ws_events to anon, authenticated;
