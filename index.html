@@ -61,6 +61,19 @@
       display: inline-block;
     }
     .subtitle { font-size: 14px; color: var(--muted); }
+    .help-link {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 4px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--primary-dark);
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid #bfdbfe;
+      border-radius: 20px;
+      text-decoration: none;
+    }
+    .help-link:hover { background: var(--primary-light); }
 
     .card {
       background: var(--card);
@@ -937,6 +950,7 @@
     <header>
       <h1 id="appTitle">📅 輪班表</h1>
       <p class="subtitle" id="appSubtitle">輕鬆找出共同放假的日子</p>
+      <a class="help-link" href="./help.html">📖 使用說明</a>
     </header>
 
     <div class="card">
@@ -2722,7 +2736,8 @@
           html: '<p class="help-text" style="font-size:14px;margin-bottom:12px">這是<b>你自己的</b>班表，別人看不到你的，你也看不到別人的。</p>' +
             '<div class="field"><label>你的名字</label><input type="text" class="name-input" id="dlgName" maxlength="20" placeholder="例如：小明"></div>' +
             teamSelectHtml('dlgTeam', '') +
-            '<p class="help-text">之後可以按「＋ 新增」加家人或朋友，並記得按「🔗 連結」把班表連結存起來，換手機時才找得回來。</p>',
+            '<p class="help-text">之後可以按「＋ 新增」加家人或朋友，並記得按「🔗 連結」把班表連結存起來，換手機時才找得回來。' +
+            '<br>第一次用？可以先看 <a href="./help.html" target="_blank" rel="noopener">📖 使用說明</a>。</p>',
           buttons: [{ label: '開始使用', cls: 'btn-save', onClick: function() {
             var name = $('dlgName').value.trim();
             if (!name) { showToast('請輸入名字'); return false; }

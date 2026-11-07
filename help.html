@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#3b82f6">
+  <link rel="icon" href="./icon-192.png">
+  <title>輪班班表使用說明</title>
+  <style>
+    :root {
+      --primary: #3b82f6;
+      --primary-dark: #1d4ed8;
+      --primary-light: #dbeafe;
+      --bg: #eef2f7;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --muted: #64748b;
+      --green: #047857;
+      --amber: #b45309;
+      --shadow: 0 4px 16px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+    body {
+      font-family: "Microsoft JhengHei", "Noto Sans TC", "PingFang TC", sans-serif;
+      background: linear-gradient(160deg, #eef2ff 0%, var(--bg) 45%, #fdf2f8 100%);
+      background-attachment: fixed;
+      color: var(--text);
+      line-height: 1.75;
+      padding: 24px 16px 56px;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 22px; }
+    h1 {
+      font-size: 28px;
+      letter-spacing: 1px;
+      background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: inline-block;
+    }
+    .lead { color: var(--muted); font-size: 15px; margin-top: 4px; }
+    .cta {
+      display: inline-block;
+      margin-top: 16px;
+      padding: 12px 26px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: #fff;
+      font-weight: 700;
+      text-decoration: none;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+    }
+    .card {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 22px 22px 18px;
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+      border: 1px solid rgba(226, 232, 240, 0.6);
+    }
+    h2 {
+      font-size: 19px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      scroll-margin-top: 16px;
+    }
+    h3 { font-size: 15px; margin: 14px 0 4px; }
+    p { margin-bottom: 8px; }
+    ol, ul { padding-left: 22px; margin-bottom: 8px; }
+    li { margin-bottom: 4px; }
+    b { color: var(--text); }
+    .btn {
+      display: inline-block;
+      padding: 0 8px;
+      border-radius: 6px;
+      border: 1px solid #bfdbfe;
+      background: #eff6ff;
+      color: var(--primary-dark);
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+      line-height: 1.7;
+    }
+    .toc { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 6px 16px; padding-left: 0; list-style: none; }
+    .toc a { color: var(--primary-dark); text-decoration: none; font-weight: 600; }
+    .toc a:hover { text-decoration: underline; }
+    .tip, .warn {
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin: 10px 0;
+      font-size: 14px;
+    }
+    .tip { background: #ecfdf5; border-left: 4px solid #10b981; }
+    .warn { background: #fffbeb; border-left: 4px solid #f59e0b; }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0; }
+    .badge {
+      display: inline-block;
+      padding: 1px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .b-day { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; }
+    .b-night { background: linear-gradient(135deg, #374151, #111827); color: #fff; }
+    .b-off { background: #fce7f3; color: #e11d48; }
+    .b-both { background: linear-gradient(135deg, #10b981, #059669); color: #fff; }
+    .b-leave { background: #fef3c7; color: var(--amber); border: 1px solid #fcd34d; }
+    .b-ot { background: linear-gradient(135deg, #374151, #111827); color: #fff; box-shadow: inset 0 0 0 2px #f59e0b; }
+    .b-hol { background: #fff5f5; color: #e11d48; border: 1px solid #fecaca; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0; }
+    th, td { border: 1px solid var(--border); padding: 7px 10px; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; color: var(--muted); font-weight: 700; }
+    code {
+      font-family: Consolas, "Courier New", monospace;
+      background: #f1f5f9;
+      padding: 1px 6px;
+      border-radius: 5px;
+      font-size: 13px;
+      word-break: break-all;
+    }
+    pre {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 13px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      font-family: inherit;
+      margin: 8px 0;
+    }
+    details { border-top: 1px dashed var(--border); padding: 10px 0; }
+    details:first-of-type { border-top: none; }
+    summary { cursor: pointer; font-weight: 700; }
+    details p { margin-top: 6px; color: #334155; font-size: 14px; }
+    footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 8px; }
+    footer a { color: var(--primary-dark); }
+    @media (max-width: 640px) {
+      body { padding: 16px 10px 48px; }
+      .card { padding: 18px 16px 14px; }
+      h1 { font-size: 24px; }
+      h2 { font-size: 17px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>📖 輪班班表使用說明</h1>
+      <p class="lead">把兩個人的班表疊在一起，一眼找出可以一起放假的日子。</p>
+      <a class="cta" href="./index.html">開啟輪班班表 →</a>
+    </header>
+
+    <div class="card">
+      <h2>📌 目錄</h2>
+      <ul class="toc">
+        <li><a href="#start">1. 第一次使用</a></li>
+        <li><a href="#home">2. 加到手機主畫面</a></li>
+        <li><a href="#privacy">3. 隱私與換手機</a></li>
+        <li><a href="#family">4. 加入家人、朋友</a></li>
+        <li><a href="#calendar">5. 看懂日曆</a></li>
+        <li><a href="#leave">6. 請假與加班</a></li>
+        <li><a href="#annual">7. 年度休假統計</a></li>
+        <li><a href="#finder">8. 找休假日＋傳 LINE</a></li>
+        <li><a href="#marker">9. 共同休假標記</a></li>
+        <li><a href="#rule">10. 自己填輪班規則</a></li>
+        <li><a href="#faq">11. 常見問題</a></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2 id="start">🚀 1. 第一次使用</h2>
+      <ol>
+        <li>用手機打開班表網址，會跳出「歡迎使用」視窗。</li>
+        <li>輸入<b>你的名字</b>。</li>
+        <li>
+          選擇<b>康寧班別</b>：
+          <ul>
+            <li><b>康寧同事</b>：直接選 A、B、C 或 D 班，班表就自動排好了。</li>
+            <li><b>其他公司</b>：選「不是康寧／之後再設定」，再到下方填自己的輪班規則（見<a href="#rule">第 10 節</a>）。</li>
+          </ul>
+        </li>
+        <li>按 <span class="btn">開始使用</span>。</li>
+      </ol>
+      <p>每個班表可以放<b>兩個人</b>（例如你和另一半）。要加入第二個人：</p>
+      <ol>
+        <li>按 <span class="btn">⚙️ 顯示輪班規則</span>。</li>
+        <li>在右邊（手機在下方）那一格填上姓名。</li>
+        <li>如果也是康寧的人，點 <span class="btn">A</span> <span class="btn">B</span> <span class="btn">C</span> <span class="btn">D</span>；不是的話就自己填規則。</li>
+        <li>按 <span class="btn">✓ 套用設定並更新班表</span>。</li>
+      </ol>
+      <div class="tip">💡 只有自己一個人也可以用，第二個人留空就好。</div>
+    </div>
+
+    <div class="card">
+      <h2 id="home">📱 2. 加到手機主畫面（像 App 一樣使用）</h2>
+      <h3>iPhone（Safari）</h3>
+      <ol>
+        <li>點下方的「分享」按鈕（方框加向上箭頭）。</li>
+        <li>選「加入主畫面」，再按「新增」。</li>
+      </ol>
+      <h3>Android（Chrome）</h3>
+      <ol>
+        <li>點右上角「⋮」。</li>
+        <li>選「加到主畫面」或「安裝應用程式」。</li>
+      </ol>
+      <div class="warn">⚠️ <b>iPhone 要注意</b>：主畫面的 App 和 Safari 的資料是<b>分開存的</b>。如果先在 Safari 設定好、之後才加到主畫面，打開 App 時會看到空白班表。這時請照<a href="#privacy">第 3 節</a>「換手機找回班表」的步驟，貼上你的班表連結就好。</div>
+    </div>
+
+    <div class="card">
+      <h2 id="privacy">🔒 3. 隱私與換手機</h2>
+      <p>每個人的班表都是<b>獨立的</b>：你看不到別人的，別人也看不到你的。每支手機第一次打開時，系統會自動幫你建立一個專屬班表，不需要註冊帳號，也不用密碼。</p>
+      <h3>🔗 一定要先存好「班表連結」</h3>
+      <p>你的專屬班表靠一條連結來辨認。按右上方的 <span class="btn">🔗 連結</span>，再按 <span class="btn">複製連結</span>，傳到自己的 LINE（例如「Keep 筆記」或只有自己的聊天室）存起來。</p>
+      <div class="warn">⚠️ 換手機、清除瀏覽器資料，或用另一台裝置時，<b>沒有這條連結就找不回你的班表</b>。</div>
+      <h3>換手機時怎麼找回班表</h3>
+      <ol>
+        <li>在新手機打開你存好的連結就好。</li>
+        <li>如果新手機已經開過班表，會問「要切換到這個班表嗎？」，按 <span class="btn">切換</span>。</li>
+        <li>如果是在主畫面的 App 裡（沒辦法直接點連結）：按 <span class="btn">🔗 連結</span>，在「已經有班表連結？」那一欄貼上連結，再按 <span class="btn">切換</span>。</li>
+      </ol>
+      <div class="tip">💡 這條連結就像鑰匙：給家人，他們就能一起看、一起改；<b>不要貼到同事群組</b>。同事請他們自己打開班表網址，會自動有自己的班表。</div>
+    </div>
+
+    <div class="card">
+      <h2 id="family">👨‍👩‍👧 4. 加入家人、朋友</h2>
+      <p>有兩種做法，看你的需求選：</p>
+      <table>
+        <tr><th>想要的效果</th><th>做法</th></tr>
+        <tr>
+          <td>家人<b>跟我一起看、一起改</b>同一份班表</td>
+          <td>把你的 <span class="btn">🔗 連結</span> 傳給他，他用手機打開就好。</td>
+        </tr>
+        <tr>
+          <td>在我的班表裡<b>多管一組人</b>（例如自己＋老婆一組、爸媽一組）</td>
+          <td>按 <span class="btn">＋ 新增</span>，輸入名稱、選班別，之後用左上的「使用者」選單切換。</td>
+        </tr>
+        <tr>
+          <td>家人<b>自己用、不想跟我共用</b></td>
+          <td>請他用自己的手機打開班表網址，會自動建立他自己的班表。</td>
+        </tr>
+      </table>
+      <p>使用者選單旁還有 <span class="btn">改名</span> 和 <span class="btn">刪除</span>。刪除會連同那組的請假、加班與備註一起刪掉，<b>無法復原</b>。</p>
+    </div>
+
+    <div class="card">
+      <h2 id="calendar">📅 5. 看懂日曆</h2>
+      <div class="legend">
+        <span><span class="badge b-day">日班</span></span>
+        <span><span class="badge b-night">夜班</span></span>
+        <span><span class="badge b-off">休假</span></span>
+        <span><span class="badge b-both">✓ 兩人都休假</span></span>
+        <span><span class="badge b-leave">請假</span></span>
+        <span><span class="badge b-ot">加班</span></span>
+        <span><span class="badge b-hol">國定假日</span></span>
+      </div>
+      <ul>
+        <li><b>綠色格子</b>＝兩個人同一天休假。</li>
+        <li><b>🏃 圖示</b>＝適合一起安排活動的共同休假日（條件可以自己設定，見<a href="#marker">第 9 節</a>）。</li>
+        <li>日期旁的<b>咖啡色小字</b>是農曆；紅色標籤是國定假日、補假。</li>
+        <li>上方可以切換 <span class="btn">兩人都顯示</span>，或只顯示其中一個人。</li>
+        <li>按 ◀ ▶ 或左右滑動可以換月份；點<b>月份標題</b>可以直接跳到某年某月；按 <span class="btn">今天</span> 回到本月。</li>
+        <li><b>點任一天</b>可以寫備註（📝），也可以登記請假、加班。</li>
+        <li>日曆下方會統計本月各自休假天數、共同休假天數。</li>
+      </ul>
+      <div class="tip">💡 手機上格子比較小，會用簡寫，例如「武日」＝武昌日班、「同休」＝兩人都休假、「武特」＝武昌請特休。</div>
+    </div>
+
+    <div class="card">
+      <h2 id="leave">📝 6. 請假與加班</h2>
+      <p>點日曆上的某一天，視窗裡每個人都有自己的按鈕：</p>
+      <h3>請假（只有要上班的日子才能請）</h3>
+      <ul>
+        <li>假別：特休、彈性休、事假、病假、婚假、喪假、公假、其他。</li>
+        <li>可以請 <b>1 天</b> 或 <b>半天</b>。</li>
+        <li>請特休、彈性休時，會直接告訴你「請完剩幾天」，超過額度會用紅字提醒。</li>
+        <li>請整天的話，那天會變成休假，<b>共同休假也會跟著重算</b>。</li>
+      </ul>
+      <h3>加班</h3>
+      <ul>
+        <li><b>休假日加班</b>：選「加日班」或「加夜班」，時數預設 12 小時，那天會變成上班。</li>
+        <li><b>上班日加班</b>：只記錄加班時數，格子上會顯示「+2h」這類小標記。</li>
+      </ul>
+      <p>登記錯了？再點那一天，按 <span class="btn">修改</span> 或 <span class="btn">取消請假／加班</span> 就好。</p>
+      <div class="tip">💡 這裡是<b>自己記錄用</b>，不會送到公司系統，請假、加班一樣要照公司流程申請。</div>
+    </div>
+
+    <div class="card">
+      <h2 id="annual">📋 7. 年度休假統計</h2>
+      <p>日曆下方的「年度休假與加班」卡片，會顯示目前月份所在那一年的統計，每個人一欄：</p>
+      <ul>
+        <li><b>特休</b>：剩幾天、已用幾天。總天數請<b>依公司核給的天數自己填</b>，預設是 0。</li>
+        <li><b>彈性休</b>：康寧員工預設 4 天；其他公司預設 0 天，可以自己改。</li>
+        <li><b>其他請假</b>：事假、病假等各請了幾天。</li>
+        <li><b>加班</b>：本月和全年的時數與次數。</li>
+        <li>點 <span class="btn">查看明細</span> 可以看全年每一筆紀錄。</li>
+      </ul>
+      <div class="warn">⚠️ 額度是<b>一年一年分開記</b>的。每年年初請記得填當年度的特休天數（翻到那一年的月份，卡片就會顯示那一年）。</div>
+    </div>
+
+    <div class="card">
+      <h2 id="finder">🔍 8. 找休假日＋傳 LINE</h2>
+      <p>按日曆上方綠色的 <span class="btn">🔍 找休假日</span>，可以設定：</p>
+      <ul>
+        <li><b>對象</b>：兩人共同休假，或只看某一個人。</li>
+        <li><b>區間</b>：自己選起訖日，或點「未來 1 個月／3 個月／半年／今年剩下／明年整年」。</li>
+        <li><b>連休</b>：只列出至少連休 2～5 天的日子，排出遊很好用。</li>
+        <li><b>只看標記日</b>：只列出有 🏃 這類共同休假標記的日子。</li>
+      </ul>
+      <p>連續的休假會合成一段；點其中一段就會跳到那個月。按 <span class="btn">複製結果</span>，就能直接貼到 LINE，例如：</p>
+      <pre>💑 小明 &amp; 小美｜共同休假
+🗓️ 2026/11/07 ～ 2026/12/31
+━━━━━━━━━━━━
+🍂 11 月
+🌴 11/9（一）～11/10（二）｜2 天 🏃
+　　📝 11/10 去墾丁
+☀️ 11/18（三）｜1 天
+
+🎄 12 月
+🏖️ 12/25（五）～12/27（日）｜3 天
+　　🎉 12/25 行憲紀念日
+━━━━━━━━━━━━
+✅ 共 6 天・3 段・最長連休 3 天
+📅 來自「輪班班表」</pre>
+      <p>☀️ 休 1 天、🌴 連休 2 天、🏖️ 連休 3 天以上。複製的文字<b>不會包含你的班表連結</b>，傳到群組也很安全。</p>
+    </div>
+
+    <div class="card">
+      <h2 id="marker">🏃 9. 共同休假標記（可以自己改）</h2>
+      <p>預設會在「兩人都休假，而且前一天都沒有上夜班」的日子標上 🏃 運動。每個人的需求不同，可以自己改：</p>
+      <ol>
+        <li>按 <span class="btn">⚙️ 顯示輪班規則</span>，往下找到「共同休假標記」。</li>
+        <li>可以改<b>名稱和圖示</b>，例如 ⛰️ 出遊、🍽️ 約會、🎬 看電影。</li>
+        <li>勾選<b>哪些情況那天就不標記</b>，例如「前一天上夜班（早上剛下大夜）」、「隔天要上日班（要早睡）」，每個人可以分開設定。</li>
+        <li>不需要這個功能的話，取消勾選最上面那一項就好。</li>
+        <li>最後按 <span class="btn">✓ 套用設定並更新班表</span>。</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2 id="rule">✏️ 10. 自己填輪班規則（非康寧、或特殊班表）</h2>
+      <p>按 <span class="btn">⚙️ 顯示輪班規則</span>，每個人都有兩個欄位：</p>
+      <table>
+        <tr><th>欄位</th><th>要填什麼</th></tr>
+        <tr><td>週期起始日</td><td>規則中第 1 個數字對應的那一天。</td></tr>
+        <tr><td>輪班規則</td><td>一整個循環每天的班別，用數字表示：<br><b>0</b> = 休假、<b>1</b> = 日班、<b>2</b> = 夜班</td></tr>
+      </table>
+      <h3>範例</h3>
+      <ul>
+        <li><b>做二休二、日夜輪</b>（日日休休夜夜休休）：<code>11002200</code></li>
+        <li><b>週休二日</b>（起始日填某個星期一）：<code>1111100</code></li>
+        <li><b>做四休二</b>：<code>111100</code></li>
+      </ul>
+      <p>填好後按 <span class="btn">✓ 套用設定並更新班表</span>，系統就會依照這個循環一直排下去。</p>
+      <div class="tip">💡 康寧同事不用自己填，點 <span class="btn">A</span> <span class="btn">B</span> <span class="btn">C</span> <span class="btn">D</span> 就會自動帶入（康寧是 28 天一循環，四個班的起始日各錯開 7 天）。</div>
+    </div>
+
+    <div class="card">
+      <h2 id="faq">❓ 11. 常見問題</h2>
+      <details>
+        <summary>打開後看到空白班表，我之前設定的資料不見了？</summary>
+        <p>資料沒有不見，通常是換了手機、換了瀏覽器、清除了瀏覽器資料，或是 iPhone 從 Safari 改用主畫面 App。用你存好的班表連結就能找回（見<a href="#privacy">第 3 節</a>）。</p>
+      </details>
+      <details>
+        <summary>沒有存班表連結，還找得回來嗎？</summary>
+        <p>如果原本那支手機或瀏覽器還在，用原本的裝置打開班表，按「🔗 連結」就能複製出來。原本的裝置也沒了的話，就找不回來了，因為系統沒有帳號，也沒辦法查是誰的班表。</p>
+      </details>
+      <details>
+        <summary>我換到康寧別的班別了，怎麼改？</summary>
+        <p>按「⚙️ 顯示輪班規則」，在自己那一格點新的班別（A／B／C／D）就好。已經登記的請假、加班和備註都會保留。</p>
+      </details>
+      <details>
+        <summary>日曆上的班別跟實際不一樣？</summary>
+        <p>先確認班別或「週期起始日」有沒有選對。臨時調班或支援的話，可以點那一天用「請假」或「加班」登記。如果整個康寧班表都不對，請告訴維護的人。</p>
+      </details>
+      <details>
+        <summary>家人改了班表，我這邊多久會更新？</summary>
+        <p>大約 15 秒內會自動同步；把班表重新打開也會立刻更新。</p>
+      </details>
+      <details>
+        <summary>別人會不會看到我的班表？</summary>
+        <p>不會。只有拿到你班表連結的人才看得到。從「找休假日」複製出來的文字也不包含連結。</p>
+      </details>
+      <details>
+        <summary>需要付費或註冊嗎？</summary>
+        <p>不用，打開網址就能用，也不需要帳號。</p>
+      </details>
+    </div>
+
+    <footer>
+      <p><a href="./index.html">← 回到輪班班表</a></p>
+    </footer>
+  </div>
+</body>
+</html>
