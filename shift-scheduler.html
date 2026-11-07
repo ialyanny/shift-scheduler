@@ -209,6 +209,37 @@
       cursor: pointer;
     }
     .btn-preset:hover { background: var(--primary-light); }
+    .team-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .team-row .team-label { font-size: 12px; font-weight: 600; color: var(--muted); margin-right: 2px; }
+    .btn-team {
+      min-width: 40px;
+      padding: 7px 10px;
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: 8px;
+      border: 1px solid #bfdbfe;
+      background: #fff;
+      color: var(--primary-dark);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .btn-team:hover { background: var(--primary-light); }
+    .btn-team.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .team-tag {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--primary-dark);
+      background: var(--primary-light);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+    .modal select.team-select { margin-bottom: 10px; }
     .check-row {
       display: flex;
       align-items: center;
@@ -774,7 +805,7 @@
             <label>輪班規則</label>
             <input type="text" id="myPattern" placeholder="例如: 22200220001100111001100022002220010011100110002200">
             <div class="help-text">0=休假, 1=日班, 2=夜班</div>
-            <button type="button" class="btn-preset" data-p="my">帶入康寧班表</button>
+            <div class="team-row" data-p="my"><span class="team-label">康寧班別</span><button type="button" class="btn-team" data-team="A">A</button><button type="button" class="btn-team" data-team="B">B</button><button type="button" class="btn-team" data-team="C">C</button><button type="button" class="btn-team" data-team="D">D</button></div>
           </div>
         </div>
 
@@ -792,7 +823,7 @@
             <label>輪班規則</label>
             <input type="text" id="bkPattern" placeholder="例如: 22002200220022001100110011001100">
             <div class="help-text">0=休假, 1=日班, 2=夜班</div>
-            <button type="button" class="btn-preset" data-p="bk">帶入康寧班表</button>
+            <div class="team-row" data-p="bk"><span class="team-label">康寧班別</span><button type="button" class="btn-team" data-team="A">A</button><button type="button" class="btn-team" data-team="B">B</button><button type="button" class="btn-team" data-team="C">C</button><button type="button" class="btn-team" data-team="D">D</button></div>
           </div>
         </div>
       </div>
@@ -863,8 +894,9 @@
       var syncTimer = 0;
       var lastLocalSave = 0;
 
-      // 康寧輪班規則（同事共用；不同班別只要調整週期起始日）
-      var CORNING = { pattern: '22200220001100111001100022002220022000110011100110002200', startDate: '2026-06-05' };
+      // 康寧輪班規則：28 天一循環，A～D 四班規則相同、起始日錯開（依 2027 公司班表核對）
+      var CORNING_PATTERN = '2220022000110011100110002200';
+      var CORNING_TEAMS = { A: '2021-01-15', B: '2021-01-01', C: '2021-01-08', D: '2021-01-22' };
 
       var holidays = {
         '1-1': '元旦',
@@ -969,13 +1001,39 @@
         return String(s || '').replace(/[12]/g, function (ch) { return ch === '1' ? '2' : '1'; });
       }
 
+      // 判斷某人的規則是否等於康寧某一班（比對今天起 28 天）
+      function corningTeamOf(person) {
+        if (!person || !person.pattern || !person.startDate) return null;
+        var t0 = new Date();
+        var teams = Object.keys(CORNING_TEAMS);
+        for (var i = 0; i < teams.length; i++) {
+          var same = true;
+          for (var d = 0; d < 28 && same; d++) {
+            var dt = new Date(t0.getFullYear(), t0.getMonth(), t0.getDate() + d);
+            var y = dt.getFullYear(), m = dt.getMonth(), dd = dt.getDate();
+            if (getShift(person.pattern, person.startDate, y, m, dd) !== getShift(CORNING_PATTERN, CORNING_TEAMS[teams[i]], y, m, dd)) same = false;
+          }
+          if (same) return teams[i];
+        }
+        return null;
+      }
+
+      function teamSelectHtml(id, selected) {
+        var opts = '<option value="">不是康寧／之後再設定</option>';
+        Object.keys(CORNING_TEAMS).forEach(function (t) {
+          opts += '<option value="' + t + '"' + (t === selected ? ' selected' : '') + '>康寧 ' + t + ' 班</option>';
+        });
+        return '<div class="field"><label>康寧班別</label><select class="team-select" id="' + id + '">' + opts + '</select></div>';
+      }
+
       function isWsId(s) { return typeof s === 'string' && /^[0-9a-f]{32,128}$/.test(s); }
 
-      function makeProfile(name, useCorning) {
+      function makeProfile(name, team) {
+        var useCorning = !!CORNING_TEAMS[team];
         return {
           id: 'p' + randomHex(6),
           name: name,
-          p1: { name: name, pattern: useCorning ? CORNING.pattern : '', startDate: useCorning ? CORNING.startDate : fmtLocal(new Date()) },
+          p1: { name: name, pattern: useCorning ? CORNING_PATTERN : '', startDate: useCorning ? CORNING_TEAMS[team] : fmtLocal(new Date()) },
           p2: { name: '伴侶', pattern: '', startDate: fmtLocal(new Date()) },
           sort: Date.now(),
           notes: {}
@@ -988,7 +1046,7 @@
       }
 
       function ensureCurrent() {
-        if (!profiles.length) { profiles = [makeProfile('我', true)]; unsavedDefault = true; }
+        if (!profiles.length) { profiles = [makeProfile('我', null)]; unsavedDefault = true; }
         var p = cur();
         currentId = p.id;
         notes = p.notes || (p.notes = {});
@@ -1573,18 +1631,27 @@
         setIfIdle('p2Name', u.p2.name || '');
         setIfIdle('bkPattern', u.p2.pattern || '');
         setIfIdle('bkStartDate', u.p2.startDate || '');
-        $('p1Heading').innerHTML = '<span class="dot dot-me"></span>' + escHtml(u.p1.name || '') + '班表';
-        $('p2Heading').innerHTML = '<span class="dot dot-bk"></span>' + escHtml(u.p2.name || '') + '班表';
+        var t1 = corningTeamOf(u.p1), t2 = corningTeamOf(u.p2);
+        $('p1Heading').innerHTML = '<span class="dot dot-me"></span>' + escHtml(u.p1.name || '') + '班表' + (t1 ? ' <span class="team-tag">康寧 ' + t1 + ' 班</span>' : '');
+        $('p2Heading').innerHTML = '<span class="dot dot-bk"></span>' + escHtml(u.p2.name || '') + '班表' + (t2 ? ' <span class="team-tag">康寧 ' + t2 + ' 班</span>' : '');
+        document.querySelectorAll('.team-row').forEach(function(row) {
+          var t = row.dataset.p === 'my' ? t1 : t2;
+          row.querySelectorAll('.btn-team').forEach(function(b) { b.classList.toggle('active', b.dataset.team === t); });
+        });
       }
 
       $('btnApply').addEventListener('click', applySettings);
 
-      document.querySelectorAll('.btn-preset').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-          var p = btn.dataset.p;
-          $(p + 'Pattern').value = CORNING.pattern;
-          $(p + 'StartDate').value = CORNING.startDate;
-          showToast('已帶入康寧班表，班別不同請調整起始日，再按套用');
+      document.querySelectorAll('.team-row').forEach(function(row) {
+        row.querySelectorAll('.btn-team').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var p = row.dataset.p;
+            var team = btn.dataset.team;
+            $(p + 'Pattern').value = CORNING_PATTERN;
+            $(p + 'StartDate').value = CORNING_TEAMS[team];
+            applySettings();
+            showToast('已設定為康寧 ' + team + ' 班');
+          });
         });
       });
 
@@ -1730,7 +1797,7 @@
         openDialog({
           title: '新增使用者',
           html: '<div class="field"><label>名稱</label><input type="text" class="name-input" id="dlgName" placeholder="例如：老婆、小明" maxlength="20"></div>' +
-            '<label class="check-row"><input type="checkbox" id="dlgCorning" checked> 預先帶入康寧輪班規則</label>' +
+            teamSelectHtml('dlgTeam', '') +
             '<div class="help-text">新增的使用者只會出現在你這個班表空間裡，其他人看不到。<br>同事請讓他們用自己的手機開網址，會自動有自己獨立的班表。</div>',
           buttons: [
             { label: '取消' },
@@ -1738,7 +1805,7 @@
               var name = $('dlgName').value.trim();
               if (!name) { showToast('名稱不可空白'); return false; }
               if (nameTaken(name)) { showToast('此名稱已存在'); return false; }
-              var p = makeProfile(name, $('dlgCorning').checked);
+              var p = makeProfile(name, $('dlgTeam').value);
               var maxSort = profiles.reduce(function(m, x) { return Math.max(m, x.sort || 0); }, 0);
               p.sort = Math.max(Date.now(), maxSort + 1);
               profiles.push(p);
@@ -1880,14 +1947,27 @@
       });
 
       function welcome() {
-        showPatternFields(true);
         openDialog({
           title: '👋 歡迎使用輪班班表',
-          html: '<p class="help-text" style="font-size:14px">這是<b>你自己的</b>班表，別人看不到你的，你也看不到別人的。<br><br>' +
-            '1. 在下方填上姓名，輪班規則已預先帶入<b>康寧班表</b>，班別不同請調整「週期起始日」。<br>' +
-            '2. 要加家人或朋友，按「＋ 新增」。<br>' +
-            '3. 按「🔗 連結」把班表連結存起來，換手機時才找得回來。</p>',
-          buttons: [{ label: '開始設定', cls: 'btn-save' }]
+          sticky: true,
+          html: '<p class="help-text" style="font-size:14px;margin-bottom:12px">這是<b>你自己的</b>班表，別人看不到你的，你也看不到別人的。</p>' +
+            '<div class="field"><label>你的名字</label><input type="text" class="name-input" id="dlgName" maxlength="20" placeholder="例如：小明"></div>' +
+            teamSelectHtml('dlgTeam', '') +
+            '<p class="help-text">之後可以按「＋ 新增」加家人或朋友，並記得按「🔗 連結」把班表連結存起來，換手機時才找得回來。</p>',
+          buttons: [{ label: '開始使用', cls: 'btn-save', onClick: function() {
+            var name = $('dlgName').value.trim();
+            if (!name) { showToast('請輸入名字'); return false; }
+            var team = $('dlgTeam').value;
+            var u = cur();
+            u.name = name;
+            u.p1.name = name;
+            if (CORNING_TEAMS[team]) { u.p1.pattern = CORNING_PATTERN; u.p1.startDate = CORNING_TEAMS[team]; }
+            saveLocal();
+            persistProfile(u);
+            refreshUI();
+            if (!CORNING_TEAMS[team]) showPatternFields(true);
+            showToast(CORNING_TEAMS[team] ? '已設定為康寧 ' + team + ' 班' : '請在下方填寫輪班規則');
+          } }]
         });
       }
 
