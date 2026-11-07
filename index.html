@@ -184,6 +184,62 @@
       border: 1px solid #fecaca;
     }
     .btn-user-del:hover { background: #fef2f2; }
+    .btn-user-sub {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      background: #fff;
+      color: var(--primary);
+      border: 1px solid #bfdbfe;
+      transition: var(--transition);
+    }
+    .btn-user-sub:hover { background: var(--primary-light); }
+    .btn-preset {
+      margin-top: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 6px;
+      border: 1px solid #bfdbfe;
+      background: #eff6ff;
+      color: var(--primary-dark);
+      cursor: pointer;
+    }
+    .btn-preset:hover { background: var(--primary-light); }
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      margin-bottom: 10px;
+      cursor: pointer;
+    }
+    .share-input {
+      flex: 1;
+      min-width: 0;
+      padding: 10px 12px;
+      font-size: 13px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+      background: #f8fafc;
+      color: var(--text);
+    }
+    .share-input:focus { border-color: var(--primary); }
+    .dlg-sep { border: none; border-top: 1px dashed var(--border); margin: 14px 0; }
+    .btn-link-danger {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 12px;
+      text-decoration: underline;
+      cursor: pointer;
+      padding: 0;
+    }
+    .btn-link-danger:hover { color: var(--error); }
 
     .legend {
       display: flex;
@@ -689,8 +745,8 @@
 <body>
   <div class="container">
     <header>
-      <h1 id="appTitle">📅 武昌百凱輪班表</h1>
-      <p class="subtitle" id="appSubtitle">武昌 & 百凱班表合併顯示，輕鬆找出共同放假的日子</p>
+      <h1 id="appTitle">📅 輪班表</h1>
+      <p class="subtitle" id="appSubtitle">輕鬆找出共同放假的日子</p>
     </header>
 
     <div class="card">
@@ -698,7 +754,9 @@
         <label>使用者</label>
         <select id="userSelect"></select>
         <button type="button" class="btn-user-add" id="btnAddUser">＋ 新增</button>
+        <button type="button" class="btn-user-sub" id="btnRenameUser">改名</button>
         <button type="button" class="btn-user-del" id="btnDelUser">刪除</button>
+        <button type="button" class="btn-user-sub" id="btnShare" title="班表連結：換手機找回、分享給家人">🔗 連結</button>
       </div>
 
       <div class="settings-grid">
@@ -706,7 +764,7 @@
           <h3 id="p1Heading"><span class="dot dot-me"></span>武昌班表</h3>
           <div class="field">
             <label>姓名</label>
-            <input type="text" class="name-input" id="p1Name" placeholder="例如: 武昌">
+            <input type="text" class="name-input" id="p1Name" placeholder="例如: 小明">
           </div>
           <div class="field">
             <label>週期起始日</label>
@@ -716,6 +774,7 @@
             <label>輪班規則</label>
             <input type="text" id="myPattern" placeholder="例如: 11100110002200222002200011001110020022200220001100">
             <div class="help-text">0=休假, 1=夜班, 2=日班</div>
+            <button type="button" class="btn-preset" data-p="my">帶入康寧班表</button>
           </div>
         </div>
 
@@ -723,7 +782,7 @@
           <h3 id="p2Heading"><span class="dot dot-bk"></span>百凱班表</h3>
           <div class="field">
             <label>姓名</label>
-            <input type="text" class="name-input" id="p2Name" placeholder="例如: 百凱">
+            <input type="text" class="name-input" id="p2Name" placeholder="例如: 老婆">
           </div>
           <div class="field">
             <label>週期起始日</label>
@@ -733,6 +792,7 @@
             <label>輪班規則</label>
             <input type="text" id="bkPattern" placeholder="例如: 11001100110011002200220022002200">
             <div class="help-text">0=休假, 1=夜班, 2=日班</div>
+            <button type="button" class="btn-preset" data-p="bk">帶入康寧班表</button>
           </div>
         </div>
       </div>
@@ -790,25 +850,20 @@
     (function() {
       var SUPABASE_URL = 'https://nutkocotbncqxgvjkfxi.supabase.co';
       var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51dGtvY290Ym5jcXhndmprZnhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NTcwMjcsImV4cCI6MjEwMTQzMzAyN30.yfvXV2dvYhS8cTLgyir-ddaVb5oqbYIDyjngINVccfE';
-      var CACHE_KEY = 'shift_sync_cache_v1';
-
-      var USERS_KEY = 'shift_scheduler_users_v1';
-      var CURRENT_KEY = 'shift_scheduler_current_v1';
-      // 舊版 keys（僅第一次遷移用，之後不再讀寫）
-      var LEGACY_DATA_KEY = 'shift_scheduler_data_v2';
-      var LEGACY_NOTES_KEY = 'shift_scheduler_notes';
-      var LEGACY_VIEW_KEY = 'shift_scheduler_view';
+      // 每台裝置有自己的「班表空間」(workspace)，以隨機長碼識別；
+      // 雲端資料表依請求標頭 x-shift-ws 只回傳該空間的資料，彼此看不到。
+      var WS_KEY = 'shift_ws_id_v2';
+      var CACHE_PREFIX = 'shift_ws_cache_v2:';
+      var CURRENT_KEY = 'shift_ws_current_v2';
+      var VIEW_KEY = 'shift_ws_view_v2';
       var currentYear, currentMonth;
 
       var sb = null;
       var syncTimer = 0;
-      var started = false;
       var lastLocalSave = 0;
 
-      var DEFAULT_PATTERNS = {
-        p1: { pattern: '11100110002200222002200011001110020022200220001100', startDate: '2021-10-01' },
-        p2: { pattern: '11001100110011002200220022002200', startDate: '2026-06-08' }
-      };
+      // 康寧輪班規則（同事共用；不同班別只要調整週期起始日）
+      var CORNING = { pattern: '11100110002200222002200011001110011000220022200220001100', startDate: '2026-06-05' };
 
       var holidays = {
         '1-1': '元旦',
@@ -880,11 +935,13 @@
         '2029-9-24': '中秋節補假'
       };
 
-      var users = loadUsers();
-      var currentUser = loadCurrentUser();
-      if (!users[currentUser]) currentUser = Object.keys(users)[0];
-      var viewMode = users[currentUser].view || 'both';
-      var notes = users[currentUser].notes || {};
+      var wsId = null;
+      var profiles = [];      // [{ id, name, p1:{name,pattern,startDate}, p2:{...}, sort, notes:{} }]
+      var currentId = null;
+      var viewPrefs = {};
+      var viewMode = 'both';
+      var notes = {};
+      var unsavedDefault = false; // 新空間的預設資料，雲端確認為空時才上傳
       var now = new Date();
       currentYear = now.getFullYear();
       currentMonth = now.getMonth();
@@ -897,196 +954,196 @@
         return d.getFullYear() + '-' + mm + '-' + dd;
       }
 
-      function blankPerson(name) {
-        return { name: name, pattern: '', startDate: fmtLocal(new Date()) };
+      function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+      function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+      function randomHex(bytes) {
+        var a = new Uint8Array(bytes);
+        (window.crypto || window.msCrypto).getRandomValues(a);
+        return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
       }
 
-      function seedDefaultUser() {
-        var u = {
-          name: '武昌',
-          p1: { name: '武昌', pattern: DEFAULT_PATTERNS.p1.pattern, startDate: DEFAULT_PATTERNS.p1.startDate },
-          p2: { name: '百凱', pattern: DEFAULT_PATTERNS.p2.pattern, startDate: DEFAULT_PATTERNS.p2.startDate },
-          notes: {},
-          view: 'both'
+      function isWsId(s) { return typeof s === 'string' && /^[0-9a-f]{32,128}$/.test(s); }
+
+      function makeProfile(name, useCorning) {
+        return {
+          id: 'p' + randomHex(6),
+          name: name,
+          p1: { name: name, pattern: useCorning ? CORNING.pattern : '', startDate: useCorning ? CORNING.startDate : fmtLocal(new Date()) },
+          p2: { name: '伴侶', pattern: '', startDate: fmtLocal(new Date()) },
+          sort: Date.now(),
+          notes: {}
         };
-        // 遷移舊版單一班表資料
-        try {
-          var raw = localStorage.getItem(LEGACY_DATA_KEY);
-          if (raw) {
-            var old = JSON.parse(raw);
-            if (old.myPattern) { u.p1.pattern = old.myPattern; if (old.myStartDate) u.p1.startDate = old.myStartDate; }
-            if (old.bkPattern) { u.p2.pattern = old.bkPattern; if (old.bkStartDate) u.p2.startDate = old.bkStartDate; }
-          }
-          var rawN = localStorage.getItem(LEGACY_NOTES_KEY);
-          if (rawN) u.notes = JSON.parse(rawN) || {};
-          var rawV = localStorage.getItem(LEGACY_VIEW_KEY);
-          if (rawV === 'me') u.view = 'p1';
-          else if (rawV === 'bk') u.view = 'p2';
-          else if (rawV) u.view = rawV;
-        } catch(e) {}
-        return u;
       }
 
-      function loadUsers() {
-        try {
-          var raw = localStorage.getItem(USERS_KEY);
-          if (raw) {
-            var u = JSON.parse(raw);
-            if (u && Object.keys(u).length) {
-              Object.keys(u).forEach(function(k) {
-                if (!u[k].notes) u[k].notes = {};
-                if (!u[k].view) u[k].view = 'both';
-              });
-              return u;
-            }
-          }
-        } catch(e) {}
-        var seed = seedDefaultUser();
-        var obj = {};
-        obj[seed.name] = seed;
-        return obj;
+      function cur() {
+        for (var i = 0; i < profiles.length; i++) if (profiles[i].id === currentId) return profiles[i];
+        return profiles[0];
       }
 
-      function loadCurrentUser() {
-        try {
-          var raw = localStorage.getItem(CURRENT_KEY);
-          if (raw) return raw;
-        } catch(e) {}
-        return '武昌';
+      function ensureCurrent() {
+        if (!profiles.length) { profiles = [makeProfile('我', true)]; unsavedDefault = true; }
+        var p = cur();
+        currentId = p.id;
+        notes = p.notes || (p.notes = {});
+        viewMode = viewPrefs[currentId] || 'both';
       }
 
-      function cur() { return users[currentUser]; }
-
-      function saveUsers() {
-        try {
-          localStorage.setItem(USERS_KEY, JSON.stringify(users));
-          localStorage.setItem(CURRENT_KEY, currentUser);
-        } catch(e) {}
+      function saveLocal() {
+        if (!wsId) return;
+        lsSet(WS_KEY, wsId);
+        lsSet(CACHE_PREFIX + wsId, JSON.stringify({ profiles: profiles, unsavedDefault: unsavedDefault }));
+        lsSet(CURRENT_KEY, currentId || '');
+        lsSet(VIEW_KEY, JSON.stringify(viewPrefs));
       }
+      // 相容既有呼叫
+      function saveUsers() { saveLocal(); }
 
       function saveView() {
-        cur().view = viewMode;
-        saveUsers();
+        viewPrefs[currentId] = viewMode;
+        saveLocal();
+      }
+
+      function loadWorkspace(id) {
+        wsId = id;
+        profiles = [];
+        unsavedDefault = false;
+        try {
+          var c = JSON.parse(lsGet(CACHE_PREFIX + id) || 'null');
+          if (c && c.profiles) { profiles = c.profiles; unsavedDefault = !!c.unsavedDefault; }
+        } catch (e) {}
+        try { viewPrefs = JSON.parse(lsGet(VIEW_KEY) || '{}') || {}; } catch (e) { viewPrefs = {}; }
+        currentId = lsGet(CURRENT_KEY);
+        ensureCurrent();
+        saveLocal();
+        sb = makeClient();
       }
 
       // ===== Supabase 雲端同步 =====
-      function makeOfflineSb() {
-        var q = {
-          select: function () { return q; },
-          upsert: function () { return Promise.resolve({ error: { message: '離線', data: [] } }); },
-          eq: function () { return q; },
-          then: function (a, b) { return Promise.resolve({ error: { message: '離線', data: [] } }).then(a, b); }
-        };
-        return { from: function () { return q; } };
+      function makeClient() {
+        if (typeof supabase === 'undefined') return null;
+        try {
+          return supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            global: { headers: { 'x-shift-ws': wsId } },
+            auth: { persistSession: false, autoRefreshToken: false }
+          });
+        } catch (e) { return null; }
       }
 
-      // 雲端 key 以「使用者名稱::」為前綴隔離，不同使用者互不影響。
-      // '武昌' 使用者另可讀取舊格式資料（me/bk、無前綴備註）以相容舊版。
-      function ownerPrefix() { return String(currentUser).replace(/:/g, '') + '::'; }
+      function rowFromProfile(p) {
+        return {
+          ws: wsId, id: p.id, name: p.name,
+          p1_name: p.p1.name || '', p1_pattern: p.p1.pattern || '', p1_start: p.p1.startDate || '',
+          p2_name: p.p2.name || '', p2_pattern: p.p2.pattern || '', p2_start: p.p2.startDate || '',
+          sort: p.sort || 0, updated_at: Date.now()
+        };
+      }
 
-      function fetchAll() {
-        var startedAt = Date.now();
-        return Promise.all([
-          sb.from('shift_config').select('id, pattern, start_date'),
-          sb.from('shift_notes').select('date_key, note, updated_at')
-        ]).then(function (res) {
-          if (res[0].error) throw res[0].error;
-          if (res[1].error) throw res[1].error;
-          return { configs: res[0].data || [], notesRows: res[1].data || [], startedAt: startedAt };
-        });
+      function profileFromRow(r) {
+        return {
+          id: r.id,
+          name: r.name,
+          p1: { name: r.p1_name, pattern: r.p1_pattern, startDate: r.p1_start },
+          p2: { name: r.p2_name, pattern: r.p2_pattern, startDate: r.p2_start },
+          sort: Number(r.sort) || 0,
+          notes: {}
+        };
       }
 
       function sigNotes(o) {
-        return JSON.stringify(Object.keys(o || {}).sort().map(function(k) { return [k, o[k]]; }));
+        return JSON.stringify(Object.keys(o || {}).sort().map(function (k) { return [k, o[k]]; }));
+      }
+
+      function sigProfiles(list) {
+        return JSON.stringify(list.map(function (p) {
+          return [p.id, p.name, p.p1.name, p.p1.pattern, p.p1.startDate, p.p2.name, p.p2.pattern, p.p2.startDate, sigNotes(p.notes)];
+        }));
+      }
+
+      function fetchAll() {
+        var startedAt = Date.now();
+        var forWs = wsId;
+        return Promise.all([
+          sb.from('shift_profiles').select('*'),
+          sb.from('shift_ws_notes').select('profile_id, date_key, note')
+        ]).then(function (res) {
+          if (res[0].error) throw res[0].error;
+          if (res[1].error) throw res[1].error;
+          return { profiles: res[0].data || [], notesRows: res[1].data || [], startedAt: startedAt, ws: forWs };
+        });
       }
 
       function applyData(d) {
-        // 丟棄在本地最後一次儲存之前就發出的請求回應，避免蓋掉剛存好的姓名/規則
-        if (d.startedAt && d.startedAt < lastLocalSave) return;
-        var u = cur();
-        var prefix = ownerPrefix();
-        var isDefault = (currentUser === '武昌');
-        var cfg = {};
-        d.configs.forEach(function (r) {
-          if (r.id.indexOf(prefix) === 0) {
-            cfg[r.id.slice(prefix.length)] = r;
-          } else if (isDefault && (r.id === 'me' || r.id === 'bk') && !cfg[r.id]) {
-            cfg[r.id] = r;
-          }
-        });
-        var before = [u.p1.name, u.p1.pattern, u.p1.startDate, u.p2.name, u.p2.pattern, u.p2.startDate, sigNotes(u.notes), u.view].join('|');
-        if (cfg.me && cfg.me.pattern) { u.p1.pattern = cfg.me.pattern; if (cfg.me.start_date) u.p1.startDate = cfg.me.start_date; }
-        if (cfg.bk && cfg.bk.pattern) { u.p2.pattern = cfg.bk.pattern; if (cfg.bk.start_date) u.p2.startDate = cfg.bk.start_date; }
-        if (cfg.meta) {
-          if (cfg.meta.pattern) u.p1.name = cfg.meta.pattern;
-          if (cfg.meta.start_date) u.p2.name = cfg.meta.start_date;
-        }
-        var merged = {};
-        d.notesRows.forEach(function (r) {
-          if (!r.note) return;
-          if (r.date_key.indexOf(prefix) === 0) {
-            merged[r.date_key.slice(prefix.length)] = r.note;
-          } else if (isDefault && r.date_key.indexOf('::') === -1 && !merged[r.date_key]) {
-            merged[r.date_key] = r.note;
-          }
-        });
-        u.notes = merged;
-        var after = [u.p1.name, u.p1.pattern, u.p1.startDate, u.p2.name, u.p2.pattern, u.p2.startDate, sigNotes(u.notes), u.view].join('|');
-        if (before === after) return; // 雲端無變化，不重繪
-        notes = u.notes;
-        viewMode = u.view || 'both';
-        saveUsers();
-        loadForm();
-        renderUserBar();
-        initViewToggle();
-        renderCalendar();
-      }
-
-      function loadShared() {
-        if (typeof supabase === 'undefined') {
-          sb = makeOfflineSb();
+        if (d.ws !== wsId) return;
+        // 丟棄在本地最後一次儲存之前就發出的請求回應，避免蓋掉剛存好的資料
+        if (d.startedAt < lastLocalSave) return;
+        if (!d.profiles.length) {
+          // 雲端還沒有這個空間的資料 → 把本機資料上傳
+          pushAll();
           return;
         }
-        sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        fetchAll().then(applyData).catch(function () {
-          sb = null;
-          sb = makeOfflineSb();
+        var byId = {};
+        var list = d.profiles.map(profileFromRow);
+        list.forEach(function (p) { byId[p.id] = p; });
+        d.notesRows.forEach(function (n) {
+          if (n.note && byId[n.profile_id]) byId[n.profile_id].notes[n.date_key] = n.note;
         });
+        list.sort(function (a, b) { return a.sort - b.sort; });
+        var changed = unsavedDefault || sigProfiles(list) !== sigProfiles(profiles);
+        unsavedDefault = false;
+        if (!changed) return;
+        profiles = list;
+        ensureCurrent();
+        saveLocal();
+        refreshUI();
       }
 
-      function persistConfig() {
+      function syncFail(res) {
+        if (res && res.error) showToast('同步失敗：' + (res.error.message || ''));
+      }
+
+      function pushAll() {
         if (!sb) return;
-        var u = cur();
-        var prefix = ownerPrefix();
-        var rows = [
-          { id: prefix + 'me', pattern: u.p1.pattern, start_date: u.p1.startDate },
-          { id: prefix + 'bk', pattern: u.p2.pattern, start_date: u.p2.startDate },
-          { id: prefix + 'meta', pattern: u.p1.name, start_date: u.p2.name }
-        ];
-        sb.from('shift_config').upsert(rows, { onConflict: 'id' }).then(function (res) {
-          if (res.error) showToast('同步失敗：' + res.error.message);
+        unsavedDefault = false;
+        saveLocal();
+        lastLocalSave = Date.now();
+        sb.from('shift_profiles').upsert(profiles.map(rowFromProfile), { onConflict: 'ws,id' }).then(function (res) {
+          syncFail(res);
+          var rows = [];
+          profiles.forEach(function (p) {
+            Object.keys(p.notes || {}).forEach(function (k) {
+              rows.push({ ws: wsId, profile_id: p.id, date_key: k, note: p.notes[k], updated_at: Date.now() });
+            });
+          });
+          if (rows.length) sb.from('shift_ws_notes').upsert(rows, { onConflict: 'ws,profile_id,date_key' }).then(syncFail);
         }).catch(function () { showToast('同步失敗'); });
       }
 
-      function persistNotes() {
+      function persistProfile(p) {
+        lastLocalSave = Date.now();
         if (!sb) return;
-        var prefix = ownerPrefix();
-        var rows = Object.keys(notes).map(function (k) {
-          return { date_key: prefix + k, note: notes[k], updated_at: Date.now() };
-        });
-        sb.from('shift_notes').upsert(rows, { onConflict: 'date_key' }).then(function (res) {
-          if (res.error) showToast('備註同步失敗');
-        }).catch(function () { showToast('備註同步失敗'); });
+        if (unsavedDefault) { pushAll(); return; }
+        sb.from('shift_profiles').upsert([rowFromProfile(p)], { onConflict: 'ws,id' })
+          .then(syncFail).catch(function () { showToast('同步失敗'); });
       }
 
-      function subscribe() {
-        if (!sb || !sb.channel) return;
-        var channel = sb.channel('shift-sync');
-        channel
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'shift_config' }, function () { refreshQuiet(); })
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'shift_notes' }, function () { refreshQuiet(); })
-          .subscribe();
-        setInterval(function () { refreshQuiet(); }, 15000);
+      function persistNote(profileId, dk, val) {
+        lastLocalSave = Date.now();
+        if (!sb) return;
+        if (unsavedDefault) { pushAll(); return; }
+        var q = val
+          ? sb.from('shift_ws_notes').upsert([{ ws: wsId, profile_id: profileId, date_key: dk, note: val, updated_at: Date.now() }], { onConflict: 'ws,profile_id,date_key' })
+          : sb.from('shift_ws_notes').delete().eq('ws', wsId).eq('profile_id', profileId).eq('date_key', dk);
+        q.then(function (res) { if (res && res.error) showToast('備註同步失敗'); })
+          .catch(function () { showToast('備註同步失敗'); });
+      }
+
+      function removeProfileCloud(profileId) {
+        lastLocalSave = Date.now();
+        if (!sb) return;
+        sb.from('shift_ws_notes').delete().eq('ws', wsId).eq('profile_id', profileId).then(function () {
+          return sb.from('shift_profiles').delete().eq('ws', wsId).eq('id', profileId);
+        }).then(syncFail).catch(function () { showToast('同步失敗'); });
       }
 
       function refreshQuiet() {
@@ -1097,11 +1154,19 @@
         }, 300);
       }
 
-      function startApp() {
-        if (started) return;
-        started = true;
-        loadShared();
-        subscribe();
+      function refreshUI() {
+        loadForm();
+        renderUserBar();
+        initViewToggle();
+        renderCalendar();
+      }
+
+      function startSync() {
+        setInterval(refreshQuiet, 15000);
+        document.addEventListener('visibilitychange', function () {
+          if (!document.hidden) refreshQuiet();
+        });
+        refreshQuiet();
       }
 
       function showToast(msg) {
@@ -1207,8 +1272,13 @@
       function renderCalendar() {
         var u = cur();
         var p1 = u.p1, p2 = u.p2;
-        $('appTitle').textContent = '📅 ' + p1.name + p2.name + '輪班表';
-        $('appSubtitle').textContent = p1.name + ' & ' + p2.name + '班表合併顯示，輕鬆找出共同放假的日子';
+        if (p2.pattern) {
+          $('appTitle').textContent = '📅 ' + p1.name + p2.name + '輪班表';
+          $('appSubtitle').textContent = p1.name + ' & ' + p2.name + '班表合併顯示，輕鬆找出共同放假的日子';
+        } else {
+          $('appTitle').textContent = '📅 ' + p1.name + '輪班表';
+          $('appSubtitle').textContent = '可在設定中再加一位（例如家人）的班表，找出共同放假的日子';
+        }
         $('monthTitle').textContent = currentYear + ' 年 ' + (currentMonth + 1) + ' 月';
 
         var firstDay = new Date(currentYear, currentMonth, 1).getDay();
@@ -1398,9 +1468,8 @@
           } else {
             delete notes[dk];
           }
-          saveUsers();
-          lastLocalSave = Date.now();
-          persistNotes();
+          saveLocal();
+          persistNote(currentId, dk, val);
           closeModal();
           renderCalendar();
           showToast('已儲存備註');
@@ -1409,12 +1478,11 @@
         if ($('btnDelNote')) {
           $('btnDelNote').addEventListener('click', function() {
             delete notes[dk];
-          saveUsers();
-          lastLocalSave = Date.now();
-          persistNotes();
-          closeModal();
-          renderCalendar();
-          showToast('已刪除備註');
+            saveLocal();
+            persistNote(currentId, dk, '');
+            closeModal();
+            renderCalendar();
+            showToast('已刪除備註');
           });
         }
 
@@ -1470,9 +1538,8 @@
         u.p2.name = $('p2Name').value.trim() || u.p2.name || '伴侶';
         u.p2.pattern = $('bkPattern').value.trim();
         u.p2.startDate = $('bkStartDate').value;
-        lastLocalSave = Date.now();
-        saveUsers();
-        persistConfig();
+        saveLocal();
+        persistProfile(u);
         loadForm();
         renderUserBar();
         renderCalendar();
@@ -1499,6 +1566,15 @@
       }
 
       $('btnApply').addEventListener('click', applySettings);
+
+      document.querySelectorAll('.btn-preset').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var p = btn.dataset.p;
+          $(p + 'Pattern').value = CORNING.pattern;
+          $(p + 'StartDate').value = CORNING.startDate;
+          showToast('已帶入康寧班表，班別不同請調整起始日，再按套用');
+        });
+      });
 
       $('btnTogglePattern').addEventListener('click', function() {
         var fields = document.querySelectorAll('.pattern-field');
@@ -1587,60 +1663,277 @@
       // ===== 使用者選單 =====
       function renderUserBar() {
         var sel = $('userSelect');
-        sel.innerHTML = Object.keys(users).map(function(n) {
-          return '<option value="' + escHtml(n) + '"' + (n === currentUser ? ' selected' : '') + '>' + escHtml(n) + '</option>';
+        sel.innerHTML = profiles.map(function(p) {
+          return '<option value="' + escHtml(p.id) + '"' + (p.id === currentId ? ' selected' : '') + '>' + escHtml(p.name) + '</option>';
         }).join('');
         var u = cur();
         $('viewBtnP1').textContent = '只顯示' + u.p1.name;
         $('viewBtnP2').textContent = '只顯示' + u.p2.name;
       }
 
-      function switchUser(name) {
-        if (!users[name]) return;
-        currentUser = name;
-        viewMode = users[name].view || 'both';
-        notes = users[name].notes || {};
-        saveUsers();
-        loadForm();
-        renderUserBar();
-        initViewToggle();
-        renderCalendar();
-        refreshQuiet();
+      function switchProfile(id) {
+        currentId = id;
+        ensureCurrent();
+        saveLocal();
+        refreshUI();
+      }
+
+      function showPatternFields(show) {
+        document.querySelectorAll('.pattern-field').forEach(function(f) { f.classList.toggle('hidden', !show); });
+        $('btnTogglePattern').textContent = show ? '⚙️ 隱藏輪班規則' : '⚙️ 顯示輪班規則';
+      }
+
+      // 頁內對話框（取代 prompt/confirm，PWA 模式下較穩定）
+      // opts: { title, html, buttons: [{ label, cls, onClick }] }；onClick 回傳 false 則不關閉
+      function openDialog(opts) {
+        var btns = (opts.buttons || []).map(function(b, i) {
+          return '<button type="button" class="' + (b.cls || '') + '" data-i="' + i + '">' + escHtml(b.label) + '</button>';
+        }).join('');
+        $('modalContainer').innerHTML = '<div class="modal-overlay" id="noteModal"><div class="modal">' +
+          '<h3>' + escHtml(opts.title) + '</h3>' + (opts.html || '') +
+          '<div class="modal-btns">' + btns + '</div></div></div>';
+        $('modalContainer').querySelectorAll('.modal-btns button').forEach(function(el) {
+          el.addEventListener('click', function() {
+            var b = opts.buttons[+el.dataset.i];
+            if (b.onClick && b.onClick() === false) return;
+            closeModal();
+          });
+        });
+        $('noteModal').addEventListener('click', function(e) {
+          if (e.target === $('noteModal') && !opts.sticky) closeModal();
+        });
+        var first = $('modalContainer').querySelector('input[type="text"]');
+        if (first) first.focus();
+      }
+
+      function nameTaken(name, exceptId) {
+        return profiles.some(function(p) { return p.name === name && p.id !== exceptId; });
       }
 
       $('userSelect').addEventListener('change', function() {
-        switchUser(this.value);
+        switchProfile(this.value);
       });
 
       $('btnAddUser').addEventListener('click', function() {
-        var name = prompt('輸入新使用者名稱（例如：小明）', '');
-        if (name === null) return;
-        name = name.trim().replace(/:/g, '');
-        if (!name) { showToast('名稱不可空白'); return; }
-        if (users[name]) { showToast('此名稱已存在'); return; }
-        users[name] = { name: name, p1: blankPerson('我'), p2: blankPerson('伴侶'), notes: {}, view: 'both' };
-        switchUser(name);
-        var fields = document.querySelectorAll('.pattern-field');
-        var anyHidden = false;
-        fields.forEach(function(f) { if (f.classList.contains('hidden')) anyHidden = true; });
-        if (anyHidden) $('btnTogglePattern').click();
-        showToast('已新增「' + name + '」，請填寫輪班規則');
+        openDialog({
+          title: '新增使用者',
+          html: '<div class="field"><label>名稱</label><input type="text" class="name-input" id="dlgName" placeholder="例如：老婆、小明" maxlength="20"></div>' +
+            '<label class="check-row"><input type="checkbox" id="dlgCorning" checked> 預先帶入康寧輪班規則</label>' +
+            '<div class="help-text">新增的使用者只會出現在你這個班表空間裡，其他人看不到。<br>同事請讓他們用自己的手機開網址，會自動有自己獨立的班表。</div>',
+          buttons: [
+            { label: '取消' },
+            { label: '新增', cls: 'btn-save', onClick: function() {
+              var name = $('dlgName').value.trim();
+              if (!name) { showToast('名稱不可空白'); return false; }
+              if (nameTaken(name)) { showToast('此名稱已存在'); return false; }
+              var p = makeProfile(name, $('dlgCorning').checked);
+              var maxSort = profiles.reduce(function(m, x) { return Math.max(m, x.sort || 0); }, 0);
+              p.sort = Math.max(Date.now(), maxSort + 1);
+              profiles.push(p);
+              switchProfile(p.id);
+              persistProfile(p);
+              showPatternFields(true);
+              showToast('已新增「' + name + '」，請確認輪班規則後按套用');
+            } }
+          ]
+        });
+      });
+
+      $('btnRenameUser').addEventListener('click', function() {
+        var u = cur();
+        openDialog({
+          title: '改名',
+          html: '<div class="field"><label>使用者名稱</label><input type="text" class="name-input" id="dlgName" maxlength="20" value="' + escHtml(u.name) + '"></div>',
+          buttons: [
+            { label: '取消' },
+            { label: '儲存', cls: 'btn-save', onClick: function() {
+              var name = $('dlgName').value.trim();
+              if (!name) { showToast('名稱不可空白'); return false; }
+              if (nameTaken(name, u.id)) { showToast('此名稱已存在'); return false; }
+              u.name = name;
+              saveLocal();
+              persistProfile(u);
+              renderUserBar();
+              showToast('已改名');
+            } }
+          ]
+        });
       });
 
       $('btnDelUser').addEventListener('click', function() {
-        var names = Object.keys(users);
-        if (names.length <= 1) { showToast('至少保留一位使用者'); return; }
-        if (!confirm('確定刪除使用者「' + currentUser + '」？\n（雲端資料會保留，日後用相同名稱重建可找回）')) return;
-        delete users[currentUser];
-        switchUser(Object.keys(users)[0]);
-        showToast('已刪除');
+        if (profiles.length <= 1) { showToast('至少保留一位使用者'); return; }
+        var u = cur();
+        openDialog({
+          title: '刪除使用者',
+          html: '<p class="help-text" style="font-size:14px">確定刪除「' + escHtml(u.name) + '」？<br>這位使用者的輪班規則與備註會從雲端一起刪除，無法復原。</p>',
+          buttons: [
+            { label: '取消' },
+            { label: '刪除', cls: 'btn-delete', onClick: function() {
+              profiles = profiles.filter(function(p) { return p.id !== u.id; });
+              delete viewPrefs[u.id];
+              currentId = null;
+              ensureCurrent();
+              saveLocal();
+              removeProfileCloud(u.id);
+              refreshUI();
+              showToast('已刪除');
+            } }
+          ]
+        });
       });
 
-      loadForm();
-      renderUserBar();
-      initViewToggle();
-      renderCalendar();
-      startApp();
+      // ===== 班表空間：分享 / 換裝置 =====
+      function wsLink(id) {
+        return location.origin + location.pathname + '#ws=' + id;
+      }
+
+      function extractWs(text) {
+        text = String(text || '').trim();
+        var m = text.match(/ws=([0-9a-f]{32,128})/i) || text.match(/^([0-9a-f]{32,128})$/i);
+        return m ? m[1].toLowerCase() : null;
+      }
+
+      function copyText(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+          return navigator.clipboard.writeText(text);
+        }
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } catch (e) {}
+        document.body.removeChild(ta);
+        return Promise.resolve();
+      }
+
+      function switchWorkspace(id, msg) {
+        if (id === wsId) { showToast('已經是這個班表了'); return; }
+        loadWorkspace(id);
+        refreshUI();
+        refreshQuiet();
+        if (msg) showToast(msg);
+      }
+
+      $('btnShare').addEventListener('click', function() {
+        var link = wsLink(wsId);
+        openDialog({
+          title: '🔗 我的班表連結',
+          html:
+            '<p class="help-text" style="font-size:13px;margin-bottom:10px">這個班表只有拿到這條連結的人才看得到。<br>' +
+            '・<b>換手機／清除瀏覽器資料</b>時，用它找回你的班表，請先存起來（例如傳給自己的 LINE）。<br>' +
+            '・想讓<b>家人一起看、一起改</b>，就把連結傳給他們。<br>' +
+            '・<b>同事不要給這條</b>，請他們自己開網址，會自動建立自己的班表。</p>' +
+            '<div class="jump-row"><input type="text" class="share-input" id="dlgLink" readonly value="' + escHtml(link) + '"></div>' +
+            '<div class="jump-row"><button type="button" class="btn-user-add" id="dlgCopy" style="flex:1">複製連結</button>' +
+            (navigator.share ? '<button type="button" class="btn-user-add" id="dlgNativeShare" style="flex:1">分享…</button>' : '') + '</div>' +
+            '<hr class="dlg-sep">' +
+            '<div class="field"><label>已經有班表連結？貼上後按「切換」</label>' +
+            '<div class="jump-row"><input type="text" class="share-input" id="dlgJoin" placeholder="貼上連結">' +
+            '<button type="button" class="btn-user-add" id="dlgJoinBtn">切換</button></div></div>' +
+            '<button type="button" class="btn-link-danger" id="dlgNewWs">改用一個全新的空白班表</button>',
+          buttons: [{ label: '關閉' }]
+        });
+        $('dlgLink').addEventListener('focus', function() { this.select(); });
+        $('dlgCopy').addEventListener('click', function() {
+          copyText(link).then(function() { showToast('已複製連結'); }, function() { $('dlgLink').select(); showToast('請手動複製'); });
+        });
+        if ($('dlgNativeShare')) {
+          $('dlgNativeShare').addEventListener('click', function() {
+            navigator.share({ title: '輪班班表', url: link }).catch(function() {});
+          });
+        }
+        $('dlgJoinBtn').addEventListener('click', function() {
+          var id = extractWs($('dlgJoin').value);
+          if (!id) { showToast('連結格式不正確'); return; }
+          closeModal();
+          switchWorkspace(id, '已切換班表');
+        });
+        $('dlgNewWs').addEventListener('click', function() {
+          var oldLink = link;
+          openDialog({
+            title: '建立全新的空白班表？',
+            html: '<p class="help-text" style="font-size:14px">這台裝置會改用新的空白班表。<br>目前的班表不會被刪除，但之後只能用原本的連結找回：</p>' +
+              '<div class="jump-row"><input type="text" class="share-input" readonly value="' + escHtml(oldLink) + '"></div>',
+            buttons: [
+              { label: '取消' },
+              { label: '建立新班表', cls: 'btn-delete', onClick: function() {
+                copyText(oldLink).catch(function() {});
+                switchWorkspace(randomHex(24));
+                showPatternFields(true);
+                showToast('已建立新班表（舊連結已複製）');
+              } }
+            ]
+          });
+        });
+      });
+
+      function welcome() {
+        showPatternFields(true);
+        openDialog({
+          title: '👋 歡迎使用輪班班表',
+          html: '<p class="help-text" style="font-size:14px">這是<b>你自己的</b>班表，別人看不到你的，你也看不到別人的。<br><br>' +
+            '1. 在下方填上姓名，輪班規則已預先帶入<b>康寧班表</b>，班別不同請調整「週期起始日」。<br>' +
+            '2. 要加家人或朋友，按「＋ 新增」。<br>' +
+            '3. 按「🔗 連結」把班表連結存起來，換手機時才找得回來。</p>',
+          buttons: [{ label: '開始設定', cls: 'btn-save' }]
+        });
+      }
+
+      function hashWs() {
+        var m = location.hash.match(/ws=([0-9a-f]{32,128})/i);
+        return m ? m[1].toLowerCase() : null;
+      }
+
+      function clearHash() {
+        try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+      }
+
+      // 收到 #ws= 連結時：若這台裝置已在用別的班表，先詢問
+      function handleIncomingWs(id) {
+        clearHash();
+        if (!id || id === wsId) return;
+        var hasData = profiles.some(function(p) { return p.p1.pattern || p.p2.pattern || Object.keys(p.notes || {}).length; });
+        if (unsavedDefault || !hasData) { switchWorkspace(id, '已開啟班表'); return; }
+        var oldLink = wsLink(wsId);
+        openDialog({
+          title: '要切換到這個班表嗎？',
+          html: '<p class="help-text" style="font-size:14px">你開啟了另一個班表的連結。<br>切換後，目前的班表只能用原本的連結找回（按「切換」會自動複製舊連結）：</p>' +
+            '<div class="jump-row"><input type="text" class="share-input" readonly value="' + escHtml(oldLink) + '"></div>',
+          sticky: true,
+          buttons: [
+            { label: '留在目前班表' },
+            { label: '切換', cls: 'btn-save', onClick: function() {
+              copyText(oldLink).catch(function() {});
+              switchWorkspace(id, '已切換班表（舊連結已複製）');
+            } }
+          ]
+        });
+      }
+
+      window.addEventListener('hashchange', function() {
+        var id = hashWs();
+        if (id) handleIncomingWs(id);
+      });
+
+      // ===== 啟動 =====
+      var incoming = hashWs();
+      var storedWs = lsGet(WS_KEY);
+      if (!isWsId(storedWs)) storedWs = null;
+      var firstRun = !storedWs && !incoming;
+      if (storedWs) {
+        loadWorkspace(storedWs);
+      } else if (incoming) {
+        loadWorkspace(incoming);
+        clearHash();
+        incoming = null;
+      } else {
+        loadWorkspace(randomHex(24));
+      }
+
+      refreshUI();
+      startSync();
+      if (incoming) handleIncomingWs(incoming);
+      else if (firstRun) welcome();
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js');
