@@ -240,6 +240,23 @@
       border-radius: 10px;
     }
     .modal select.team-select { margin-bottom: 10px; }
+    .act-settings { grid-column: 1 / -1; }
+    .act-name-row { display: flex; gap: 8px; }
+    .field input.act-icon { width: 64px; flex: none; text-align: center; font-size: 18px; padding: 8px; }
+    .icon-picks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .icon-picks button {
+      width: 38px;
+      height: 38px;
+      font-size: 18px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #fff;
+      cursor: pointer;
+    }
+    .icon-picks button:hover { border-color: var(--primary); background: var(--primary-light); }
+    .act-checks .check-row { font-size: 13px; margin-bottom: 6px; color: var(--text); }
+    .act-checks .check-row input, .act-settings > .check-row input { width: 16px; height: 16px; flex: none; }
+    .legend-act { font-size: 14px; }
     .check-row {
       display: flex;
       align-items: center;
@@ -826,6 +843,28 @@
             <div class="team-row" data-p="bk"><span class="team-label">康寧班別</span><button type="button" class="btn-team" data-team="A">A</button><button type="button" class="btn-team" data-team="B">B</button><button type="button" class="btn-team" data-team="C">C</button><button type="button" class="btn-team" data-team="D">D</button></div>
           </div>
         </div>
+
+        <div class="person-settings pattern-field hidden act-settings">
+          <h3><span id="actHeadIcon">🏃</span> 共同休假標記</h3>
+          <label class="check-row"><input type="checkbox" id="actOn"> 兩人都休假時，在適合的日子加上標記</label>
+          <div class="field">
+            <label>標記名稱</label>
+            <div class="act-name-row">
+              <input type="text" class="name-input act-icon" id="actIcon" maxlength="4">
+              <input type="text" class="name-input" id="actName" maxlength="10" placeholder="例如：運動、出遊、約會">
+            </div>
+            <div class="icon-picks" id="actIconPicks">
+              <button type="button">🏃</button><button type="button">🚴</button><button type="button">⛰️</button><button type="button">🏊</button><button type="button">🍽️</button><button type="button">☕</button><button type="button">🎬</button><button type="button">🛒</button><button type="button">❤️</button>
+            </div>
+          </div>
+          <div class="field act-checks">
+            <label>遇到以下情況，那天就不標記</label>
+            <label class="check-row"><input type="checkbox" id="actP1Prev"> <span class="nm1">我</span>前一天上夜班（早上剛下大夜）</label>
+            <label class="check-row"><input type="checkbox" id="actP2Prev"> <span class="nm2">伴侶</span>前一天上夜班（早上剛下大夜）</label>
+            <label class="check-row"><input type="checkbox" id="actP1Next"> <span class="nm1">我</span>隔天要上日班（要早睡）</label>
+            <label class="check-row"><input type="checkbox" id="actP2Next"> <span class="nm2">伴侶</span>隔天要上日班（要早睡）</label>
+          </div>
+        </div>
       </div>
 
       <div class="legend">
@@ -833,6 +872,7 @@
         <div class="legend-item"><span class="legend-box day"></span> 日班</div>
         <div class="legend-item"><span class="legend-box off"></span> 單人休假</div>
         <div class="legend-item"><span class="legend-box both-off"></span> 兩人都休假</div>
+        <div class="legend-item" id="legendAct"><span class="legend-act" id="legendActIcon">🏃</span> <span id="legendActName">適合運動</span></div>
       </div>
 
       <button type="button" class="btn-toggle" id="btnTogglePattern">⚙️ 顯示輪班規則</button>
@@ -1037,6 +1077,16 @@
         return '<div class="field"><label>康寧班別</label><select class="team-select" id="' + id + '">' + opts + '</select></div>';
       }
 
+      // 共同休假標記：每組使用者可自訂（預設＝原本的運動日規則）
+      var ACT_DEFAULT = { on: true, icon: '🏃', name: '運動', p1PrevNight: true, p2PrevNight: true, p1NextDay: false, p2NextDay: false };
+      var ACT_KEYS = ['on', 'icon', 'name', 'p1PrevNight', 'p2PrevNight', 'p1NextDay', 'p2NextDay'];
+      function actOf(p) {
+        var a = (p && p.act) || {};
+        var out = {};
+        ACT_KEYS.forEach(function (k) { out[k] = (a[k] === undefined || a[k] === null) ? ACT_DEFAULT[k] : a[k]; });
+        return out;
+      }
+
       function isWsId(s) { return typeof s === 'string' && /^[0-9a-f]{32,128}$/.test(s); }
 
       function makeProfile(name, team) {
@@ -1116,7 +1166,8 @@
           ws: wsId, id: p.id, name: p.name,
           p1_name: p.p1.name || '', p1_pattern: p.p1.pattern || '', p1_start: p.p1.startDate || '',
           p2_name: p.p2.name || '', p2_pattern: p.p2.pattern || '', p2_start: p.p2.startDate || '',
-          sort: p.sort || 0, updated_at: Date.now()
+          sort: p.sort || 0, updated_at: Date.now(),
+          extra: { act: p.act || null }
         };
       }
 
@@ -1127,6 +1178,7 @@
           p1: { name: r.p1_name, pattern: r.p1_pattern, startDate: r.p1_start },
           p2: { name: r.p2_name, pattern: r.p2_pattern, startDate: r.p2_start },
           sort: Number(r.sort) || 0,
+          act: (r.extra && r.extra.act) || null,
           notes: {}
         };
       }
@@ -1137,7 +1189,9 @@
 
       function sigProfiles(list) {
         return JSON.stringify(list.map(function (p) {
-          return [p.id, p.name, p.p1.name, p.p1.pattern, p.p1.startDate, p.p2.name, p.p2.pattern, p.p2.startDate, sigNotes(p.notes)];
+          var a = actOf(p);
+          return [p.id, p.name, p.p1.name, p.p1.pattern, p.p1.startDate, p.p2.name, p.p2.pattern, p.p2.startDate, sigNotes(p.notes),
+            ACT_KEYS.map(function (k) { return a[k]; })];
         }));
       }
 
@@ -1379,6 +1433,7 @@
         var totalCells = Math.ceil((firstDay + totalDays) / 7) * 7;
 
         var p1OffCount = 0, p2OffCount = 0, bothOffCount = 0, sportCount = 0;
+        var act = actOf(u);
 
         for (var i = 0; i < totalCells; i++) {
           if (i % 7 === 0) html += '<tr>';
@@ -1437,13 +1492,19 @@
             }
 
             if (viewMode === 'both' && p1Shift === 'off' && p2Shift === 'off') {
-              var prevP1Shift = getShift(p1.pattern, p1.startDate, displayYear, displayMonth, displayDay - 1);
-              var prevP2Shift = getShift(p2.pattern, p2.startDate, displayYear, displayMonth, displayDay - 1);
               badges = '<div class="shift-badge both-off">' + (mob ? '✓ 同休' : '✓ 兩人都休假') + '</div>';
-              if (prevP1Shift !== 'night' && prevP2Shift !== 'night') {
-                badges += '<div class="sport-icon">🏃</div>';
-                sportCount++;
-                cellClass += ' sport-cell';
+              if (act.on) {
+                var prevP1Shift = getShift(p1.pattern, p1.startDate, displayYear, displayMonth, displayDay - 1);
+                var prevP2Shift = getShift(p2.pattern, p2.startDate, displayYear, displayMonth, displayDay - 1);
+                var nextP1Shift = getShift(p1.pattern, p1.startDate, displayYear, displayMonth, displayDay + 1);
+                var nextP2Shift = getShift(p2.pattern, p2.startDate, displayYear, displayMonth, displayDay + 1);
+                var blocked = (act.p1PrevNight && prevP1Shift === 'night') || (act.p2PrevNight && prevP2Shift === 'night') ||
+                  (act.p1NextDay && nextP1Shift === 'day') || (act.p2NextDay && nextP2Shift === 'day');
+                if (!blocked) {
+                  badges += '<div class="sport-icon" title="' + escHtml(act.name) + '">' + escHtml(act.icon) + '</div>';
+                  sportCount++;
+                  cellClass += ' sport-cell';
+                }
               }
             } else if (viewMode === 'p1' && p1Shift === 'off') {
               badges = '<div class="shift-badge off">' + (mob ? '✓ 休' : '✓ 休假') + '</div>';
@@ -1482,7 +1543,7 @@
             '<div class="summary-card"><div class="value">' + p1OffCount + '</div><div class="label">' + escHtml(p1.name) + '休假天數</div></div>' +
             '<div class="summary-card"><div class="value">' + p2OffCount + '</div><div class="label">' + escHtml(p2.name) + '休假天數</div></div>' +
             '<div class="summary-card"><div class="value" style="color:#16a34a">' + bothOffCount + '</div><div class="label">共同休假天數</div></div>' +
-            '<div class="summary-card"><div class="value" style="color:#ea580c">' + sportCount + '</div><div class="label">🏃 運動天數</div></div>';
+            (act.on ? '<div class="summary-card"><div class="value" style="color:#ea580c">' + sportCount + '</div><div class="label">' + escHtml(act.icon + ' ' + act.name) + '天數</div></div>' : '');
         } else if (viewMode === 'p1') {
           summaryHtml =
             '<div class="summary-card"><div class="value">' + p1OffCount + '</div><div class="label">' + escHtml(p1.name) + '休假天數</div></div>';
@@ -1622,6 +1683,15 @@
         u.p2.name = $('p2Name').value.trim() || u.p2.name || '伴侶';
         u.p2.pattern = $('bkPattern').value.trim();
         u.p2.startDate = $('bkStartDate').value;
+        u.act = {
+          on: $('actOn').checked,
+          icon: $('actIcon').value.trim() || ACT_DEFAULT.icon,
+          name: $('actName').value.trim() || ACT_DEFAULT.name,
+          p1PrevNight: $('actP1Prev').checked,
+          p2PrevNight: $('actP2Prev').checked,
+          p1NextDay: $('actP1Next').checked,
+          p2NextDay: $('actP2Next').checked
+        };
         saveLocal();
         persistProfile(u);
         loadForm();
@@ -1652,7 +1722,28 @@
           var t = row.dataset.p === 'my' ? t1 : t2;
           row.querySelectorAll('.btn-team').forEach(function(b) { b.classList.toggle('active', b.dataset.team === t); });
         });
+        var a = actOf(u);
+        if (document.activeElement !== $('actOn')) $('actOn').checked = a.on;
+        setIfIdle('actIcon', a.icon);
+        setIfIdle('actName', a.name);
+        $('actP1Prev').checked = a.p1PrevNight;
+        $('actP2Prev').checked = a.p2PrevNight;
+        $('actP1Next').checked = a.p1NextDay;
+        $('actP2Next').checked = a.p2NextDay;
+        $('actHeadIcon').textContent = a.icon;
+        document.querySelectorAll('.nm1').forEach(function(el) { el.textContent = u.p1.name || '我'; });
+        document.querySelectorAll('.nm2').forEach(function(el) { el.textContent = u.p2.name || '伴侶'; });
+        $('legendAct').style.display = a.on ? '' : 'none';
+        $('legendActIcon').textContent = a.icon;
+        $('legendActName').textContent = '適合' + a.name;
       }
+
+      $('actIconPicks').querySelectorAll('button').forEach(function(b) {
+        b.addEventListener('click', function() {
+          $('actIcon').value = b.textContent;
+          $('actHeadIcon').textContent = b.textContent;
+        });
+      });
 
       $('btnApply').addEventListener('click', applySettings);
 

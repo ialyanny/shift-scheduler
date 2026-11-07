@@ -87,3 +87,6 @@ create policy "own workspace" on public.shift_ws_notes
   using (ws = public.shift_req_ws()) with check (ws = public.shift_req_ws());
 
 grant select, insert, update, delete on public.shift_profiles, public.shift_ws_notes to anon, authenticated;
+
+-- v2.1：每組使用者的自訂設定（例如共同休假標記）
+alter table public.shift_profiles add column if not exists extra jsonb not null default '{}'::jsonb;
