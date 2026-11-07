@@ -772,8 +772,8 @@
           </div>
           <div class="field">
             <label>輪班規則</label>
-            <input type="text" id="myPattern" placeholder="例如: 11100110002200222002200011001110020022200220001100">
-            <div class="help-text">0=休假, 1=夜班, 2=日班</div>
+            <input type="text" id="myPattern" placeholder="例如: 22200220001100111001100022002220010011100110002200">
+            <div class="help-text">0=休假, 1=日班, 2=夜班</div>
             <button type="button" class="btn-preset" data-p="my">帶入康寧班表</button>
           </div>
         </div>
@@ -790,8 +790,8 @@
           </div>
           <div class="field">
             <label>輪班規則</label>
-            <input type="text" id="bkPattern" placeholder="例如: 11001100110011002200220022002200">
-            <div class="help-text">0=休假, 1=夜班, 2=日班</div>
+            <input type="text" id="bkPattern" placeholder="例如: 22002200220022001100110011001100">
+            <div class="help-text">0=休假, 1=日班, 2=夜班</div>
             <button type="button" class="btn-preset" data-p="bk">帶入康寧班表</button>
           </div>
         </div>
@@ -853,7 +853,8 @@
       // 每台裝置有自己的「班表空間」(workspace)，以隨機長碼識別；
       // 雲端資料表依請求標頭 x-shift-ws 只回傳該空間的資料，彼此看不到。
       var WS_KEY = 'shift_ws_id_v2';
-      var CACHE_PREFIX = 'shift_ws_cache_v2:';
+      var CACHE_PREFIX = 'shift_ws_cache_v3:';   // v3 起代碼：0=休 1=日 2=夜
+      var OLD_CACHE_PREFIX = 'shift_ws_cache_v2:'; // v2 舊代碼：0=休 1=夜 2=日
       var CURRENT_KEY = 'shift_ws_current_v2';
       var VIEW_KEY = 'shift_ws_view_v2';
       var currentYear, currentMonth;
@@ -863,7 +864,7 @@
       var lastLocalSave = 0;
 
       // 康寧輪班規則（同事共用；不同班別只要調整週期起始日）
-      var CORNING = { pattern: '11100110002200222002200011001110011000220022200220001100', startDate: '2026-06-05' };
+      var CORNING = { pattern: '22200220001100111001100022002220022000110011100110002200', startDate: '2026-06-05' };
 
       var holidays = {
         '1-1': '元旦',
@@ -963,6 +964,11 @@
         return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
       }
 
+      // 舊代碼 1=夜 2=日 → 新代碼 1=日 2=夜
+      function swapDayNight(s) {
+        return String(s || '').replace(/[12]/g, function (ch) { return ch === '1' ? '2' : '1'; });
+      }
+
       function isWsId(s) { return typeof s === 'string' && /^[0-9a-f]{32,128}$/.test(s); }
 
       function makeProfile(name, useCorning) {
@@ -1010,6 +1016,12 @@
         unsavedDefault = false;
         try {
           var c = JSON.parse(lsGet(CACHE_PREFIX + id) || 'null');
+          if (!c) {
+            c = JSON.parse(lsGet(OLD_CACHE_PREFIX + id) || 'null');
+            if (c && c.profiles) c.profiles.forEach(function (p) {
+              ['p1', 'p2'].forEach(function (k) { if (p[k]) p[k].pattern = swapDayNight(p[k].pattern); });
+            });
+          }
           if (c && c.profiles) { profiles = c.profiles; unsavedDefault = !!c.unsavedDefault; }
         } catch (e) {}
         try { viewPrefs = JSON.parse(lsGet(VIEW_KEY) || '{}') || {}; } catch (e) { viewPrefs = {}; }
@@ -1192,8 +1204,8 @@
         var idx = diff % pattern.length;
         var code = pattern[idx];
         if (code === '0') return 'off';
-        if (code === '1') return 'night';
-        if (code === '2') return 'day';
+        if (code === '1') return 'day';
+        if (code === '2') return 'night';
         return null;
       }
 
