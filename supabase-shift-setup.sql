@@ -111,3 +111,6 @@ create policy "own workspace" on public.shift_ws_events
   for all to anon, authenticated
   using (ws = public.shift_req_ws()) with check (ws = public.shift_req_ws());
 grant select, insert, update, delete on public.shift_ws_events to anon, authenticated;
+
+-- v2.3：固定函式的 search_path（Supabase 安全性建議）
+alter function public.shift_req_ws() set search_path = '';

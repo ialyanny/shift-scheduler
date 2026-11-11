@@ -1358,6 +1358,16 @@
         };
       }
 
+      // 實際使用的顯示模式：只有一個人有班表時，就只顯示那個人
+      function effView(u) {
+        u = u || cur();
+        var h1 = !!(u && u.p1.pattern), h2 = !!(u && u.p2.pattern);
+        if (h1 && !h2) return 'p1';
+        if (h2 && !h1) return 'p2';
+        if (!h1 && !h2) return 'both';
+        return viewMode;
+      }
+
       function cur() {
         for (var i = 0; i < profiles.length; i++) if (profiles[i].id === currentId) return profiles[i];
         return profiles[0];
@@ -1476,10 +1486,12 @@
         // 丟棄在本地最後一次儲存之前就發出的請求回應，避免蓋掉剛存好的資料
         if (d.startedAt < lastLocalSave) return;
         if (!d.profiles.length) {
-          // 雲端還沒有這個空間的資料 → 把本機資料上傳
-          pushAll();
+          // 雲端還沒有這個空間的資料 → 把本機資料上傳（還沒填完歡迎畫面就先不傳，避免留下空白資料）
+          if (!needsSetup()) pushAll();
           return;
         }
+        // 有視窗開著（正在請假、改名…）時先不更新，等下一次同步
+        if ($('modalContainer').firstChild) return;
         var byId = {};
         var list = d.profiles.map(profileFromRow);
         list.forEach(function (p) { byId[p.id] = p; });
@@ -1528,10 +1540,14 @@
         }).catch(function () { showToast('同步失敗'); });
       }
 
+      function firstPush() {
+        fetchAll().then(applyData).catch(function () { showToast('同步失敗，連上網路後會再試一次'); });
+      }
+
       function persistProfile(p) {
         lastLocalSave = Date.now();
         if (!sb) return;
-        if (unsavedDefault) { pushAll(); return; }
+        if (unsavedDefault) { firstPush(); return; }
         sb.from('shift_profiles').upsert([rowFromProfile(p)], { onConflict: 'ws,id' })
           .then(syncFail).catch(function () { showToast('同步失敗'); });
       }
@@ -1539,7 +1555,7 @@
       function persistNote(profileId, dk, val) {
         lastLocalSave = Date.now();
         if (!sb) return;
-        if (unsavedDefault) { pushAll(); return; }
+        if (unsavedDefault) { firstPush(); return; }
         var q = val
           ? sb.from('shift_ws_notes').upsert([{ ws: wsId, profile_id: profileId, date_key: dk, note: val, updated_at: Date.now() }], { onConflict: 'ws,profile_id,date_key' })
           : sb.from('shift_ws_notes').delete().eq('ws', wsId).eq('profile_id', profileId).eq('date_key', dk);
@@ -1550,7 +1566,7 @@
       function persistEvent(profileId, person, dk, ev) {
         lastLocalSave = Date.now();
         if (!sb) return;
-        if (unsavedDefault) { pushAll(); return; }
+        if (unsavedDefault) { firstPush(); return; }
         var q;
         if (ev) {
           var e = normEvent(ev);
@@ -1588,7 +1604,7 @@
       }
 
       function startSync() {
-        setInterval(refreshQuiet, 15000);
+        setInterval(function () { if (!document.hidden) refreshQuiet(); }, 15000);
         document.addEventListener('visibilitychange', function () {
           if (!document.hidden) refreshQuiet();
         });
@@ -1613,7 +1629,7 @@
         var start = parseDate(startDate);
         var target = new Date(year, month, day);
         var diffTime = target.getTime() - start.getTime();
-        var diff = Math.floor(diffTime / (24 * 60 * 60 * 1000));
+        var diff = Math.round(diffTime / (24 * 60 * 60 * 1000));
         if (diff < 0) return null;
         var idx = diff % pattern.length;
         var code = pattern[idx];
@@ -1655,7 +1671,8 @@
           if (Lunar.fromDate) l = Lunar.fromDate(dt);
           else if (typeof Solar !== 'undefined' && Solar.fromDate) l = Solar.fromDate(dt).getLunar();
           if (!l) return null;
-          return { month: l.getMonthInChinese() + '月', day: l.getDayInChinese() };
+          var trad = function (s) { return String(s).replace(/腊/g, '臘').replace(/闰/g, '閏'); };
+          return { month: trad(l.getMonthInChinese()) + '月', day: trad(l.getDayInChinese()) };
         } catch (e) { return null; }
       }
 
@@ -1702,6 +1719,8 @@
       function renderCalendar() {
         var u = cur();
         var p1 = u.p1, p2 = u.p2;
+        var vm = effView(u);
+        $('viewToggle').style.display = (p1.pattern && p2.pattern) ? '' : 'none';
         if (p2.pattern) {
           $('appTitle').textContent = '📅 ' + p1.name + p2.name + '輪班表';
           $('appSubtitle').textContent = p1.name + ' & ' + p2.name + '班表合併顯示，輕鬆找出共同放假的日子';
@@ -1767,22 +1786,22 @@
 
           var cellClass = isOther ? 'other-month' : '';
           if (isToday) cellClass += ' today';
-          if (!isOther && viewMode === 'both' && p1Shift === 'off' && p2Shift === 'off') cellClass += ' highlight-cell';
-          if (!isOther && viewMode === 'p1' && p1Shift === 'off') cellClass += ' highlight-cell';
-          if (!isOther && viewMode === 'p2' && p2Shift === 'off') cellClass += ' highlight-cell';
+          if (!isOther && vm === 'both' && p1Shift === 'off' && p2Shift === 'off') cellClass += ' highlight-cell';
+          if (!isOther && vm === 'p1' && p1Shift === 'off') cellClass += ' highlight-cell';
+          if (!isOther && vm === 'p2' && p2Shift === 'off') cellClass += ' highlight-cell';
 
           var badges = '';
           var mob = isMobile();
 
           if (!isOther) {
-            if (viewMode !== 'p2' && p1Shift) badges += personBadge(p1.name, '我', p1Shift, ev1, mob);
-            if (viewMode !== 'p1' && p2Shift) badges += personBadge(p2.name, '伴', p2Shift, ev2, mob);
+            if (vm !== 'p2' && p1Shift) badges += personBadge(p1.name, '我', p1Shift, ev1, mob);
+            if (vm !== 'p1' && p2Shift) badges += personBadge(p2.name, '伴', p2Shift, ev2, mob);
             var evTags = '';
-            if (viewMode !== 'p2' && ev1) evTags += evTag(p1.name, '我', ev1, mob);
-            if (viewMode !== 'p1' && ev2) evTags += evTag(p2.name, '伴', ev2, mob);
+            if (vm !== 'p2' && ev1) evTags += evTag(p1.name, '我', ev1, mob);
+            if (vm !== 'p1' && ev2) evTags += evTag(p2.name, '伴', ev2, mob);
             badges += evTags;
 
-            if (viewMode === 'both' && p1Shift === 'off' && p2Shift === 'off') {
+            if (vm === 'both' && p1Shift === 'off' && p2Shift === 'off') {
               badges = '<div class="shift-badge both-off">' + (mob ? '✓ 同休' : '✓ 兩人都休假') + '</div>';
               badges += evTags;
               [[ev1, p1.name, '我'], [ev2, p2.name, '伴']].forEach(function (x) {
@@ -1797,9 +1816,9 @@
                   cellClass += ' sport-cell';
                 }
               }
-            } else if (viewMode === 'p1' && p1Shift === 'off') {
+            } else if (vm === 'p1' && p1Shift === 'off') {
               badges = '<div class="shift-badge off">' + (mob ? '✓ 休' : '✓ 休假') + '</div>' + evTags;
-            } else if (viewMode === 'p2' && p2Shift === 'off') {
+            } else if (vm === 'p2' && p2Shift === 'off') {
               badges = '<div class="shift-badge off">' + (mob ? '✓ 休' : '✓ 休假') + '</div>' + evTags;
             }
           }
@@ -1833,13 +1852,13 @@
         $('calendarBody').innerHTML = html;
 
         var summaryHtml = '';
-        if (viewMode === 'both') {
+        if (vm === 'both') {
           summaryHtml =
             '<div class="summary-card"><div class="value">' + p1OffCount + '</div><div class="label">' + escHtml(p1.name) + '休假天數</div></div>' +
             '<div class="summary-card"><div class="value">' + p2OffCount + '</div><div class="label">' + escHtml(p2.name) + '休假天數</div></div>' +
             '<div class="summary-card"><div class="value" style="color:#16a34a">' + bothOffCount + '</div><div class="label">共同休假天數</div></div>' +
             (act.on ? '<div class="summary-card"><div class="value" style="color:#ea580c">' + sportCount + '</div><div class="label">' + escHtml(act.icon + ' ' + act.name) + '天數</div></div>' : '');
-        } else if (viewMode === 'p1') {
+        } else if (vm === 'p1') {
           summaryHtml =
             '<div class="summary-card"><div class="value">' + p1OffCount + '</div><div class="label">' + escHtml(p1.name) + '休假天數</div></div>';
         } else {
@@ -1884,9 +1903,9 @@
       }
 
       function escHtml(s) {
-        var d = document.createElement('div');
-        d.textContent = s;
-        return d.innerHTML;
+        return String(s === undefined || s === null ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
       }
 
       function openNoteModal(dk, draft) {
@@ -1972,7 +1991,7 @@
         ['p1', 'p2'].forEach(function (person) {
           var p = u[person];
           if (!p.pattern) return;
-          if (viewMode !== 'both' && viewMode !== person) return;
+          if (effView(u) !== 'both' && effView(u) !== person) return;
           var base = baseShift(u, person, y, m, d);
           var ev = eventOf(u, person, y, m, d);
           var state = '排班：' + (shiftLabel(base) || '—');
@@ -2081,7 +2100,7 @@
         var u = cur();
         var year = currentYear;
         var persons = ['p1', 'p2'].filter(function (k) {
-          return u[k].pattern && (viewMode === 'both' || viewMode === k);
+          return u[k].pattern && (effView(u) === 'both' || effView(u) === k);
         });
         if (!persons.length) { $('leaveCard').style.display = 'none'; return; }
         $('leaveCard').style.display = '';
@@ -2175,7 +2194,8 @@
       function openFinder() {
         var u = cur();
         var hasP2 = !!u.p2.pattern;
-        var who0 = viewMode === 'p1' || viewMode === 'p2' ? viewMode : (hasP2 ? 'both' : 'p1');
+        var ev0 = effView(u);
+        var who0 = ev0 === 'p1' || ev0 === 'p2' ? ev0 : (hasP2 ? 'both' : 'p1');
         var today = new Date();
         var t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
         var whoOpts = (hasP2 && u.p1.pattern ? '<option value="both">' + escHtml(u.p1.name + ' & ' + u.p2.name) + ' 共同休假</option>' : '') +
@@ -2389,11 +2409,23 @@
 
       function applySettings() {
         var u = cur();
+        var pat1 = $('myPattern').value.replace(/\s+/g, '');
+        var pat2 = $('bkPattern').value.replace(/\s+/g, '');
+        if (/[^012]/.test(pat1) || /[^012]/.test(pat2)) {
+          showToast('輪班規則只能填 0、1、2（0=休假 1=日班 2=夜班）');
+          return false;
+        }
+        if ((pat1 && !$('myStartDate').value) || (pat2 && !$('bkStartDate').value)) {
+          showToast('請選擇週期起始日');
+          return false;
+        }
+        $('myPattern').value = pat1;
+        $('bkPattern').value = pat2;
         u.p1.name = $('p1Name').value.trim() || u.p1.name || '我';
-        u.p1.pattern = $('myPattern').value.trim();
+        u.p1.pattern = pat1;
         u.p1.startDate = $('myStartDate').value;
         u.p2.name = $('p2Name').value.trim() || u.p2.name || '伴侶';
-        u.p2.pattern = $('bkPattern').value.trim();
+        u.p2.pattern = pat2;
         u.p2.startDate = $('bkStartDate').value;
         u.act = {
           on: $('actOn').checked,
@@ -2466,8 +2498,7 @@
             var team = btn.dataset.team;
             $(p + 'Pattern').value = CORNING_PATTERN;
             $(p + 'StartDate').value = CORNING_TEAMS[team];
-            applySettings();
-            showToast('已設定為康寧 ' + team + ' 班');
+            if (applySettings() !== false) showToast('已設定為康寧 ' + team + ' 班');
           });
         });
       });
@@ -2668,7 +2699,7 @@
         var u = cur();
         openDialog({
           title: '刪除使用者',
-          html: '<p class="help-text" style="font-size:14px">確定刪除「' + escHtml(u.name) + '」？<br>這位使用者的輪班規則與備註會從雲端一起刪除，無法復原。</p>',
+          html: '<p class="help-text" style="font-size:14px">確定刪除「' + escHtml(u.name) + '」？<br>這位使用者的輪班規則、備註、請假與加班紀錄會從雲端一起刪除，無法復原。</p>',
           buttons: [
             { label: '取消' },
             { label: '刪除', cls: 'btn-delete', onClick: function() {
@@ -2770,6 +2801,12 @@
         });
       });
 
+      // 還停在預設狀態（名字是「我」、兩人都沒有班表）＝歡迎畫面沒填完
+      function needsSetup() {
+        var u = cur();
+        return profiles.length === 1 && u.name === '我' && !u.p1.pattern && !u.p2.pattern;
+      }
+
       function welcome() {
         openDialog({
           title: '👋 歡迎使用輪班班表',
@@ -2850,7 +2887,7 @@
       refreshUI();
       startSync();
       if (incoming) handleIncomingWs(incoming);
-      else if (firstRun) welcome();
+      else if (firstRun || needsSetup()) welcome();
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js');
