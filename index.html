@@ -692,6 +692,23 @@
       max-width: 100%;
     }
 
+    .corp-icon {
+      font-size: 10px;
+      color: #7c3aed;
+      margin: 2px auto 0;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+      background: #f5f3ff;
+      padding: 1px 6px;
+      border-radius: 8px;
+      border: 1px solid #ddd6fe;
+      display: block;
+      width: fit-content;
+      line-height: 1.5;
+    }
     .holiday-icon {
       font-size: 10px;
       color: #e11d48;
@@ -1098,6 +1115,17 @@
       // 康寧輪班規則：28 天一循環，A～D 四班規則相同、起始日錯開（依 2027 公司班表核對）
       var CORNING_PATTERN = '2220022000110011100110002200';
       var CORNING_TEAMS = { A: '2021-01-15', B: '2021-01-01', C: '2021-01-08', D: '2021-01-22' };
+
+      // 康寧公司活動（只有班表裡有康寧員工時才顯示；不算放假）
+      var CORNING_EVENTS = {
+        '2027-1-11': '小尾牙',
+        '2027-1-18': '大尾牙'
+      };
+      function corpEventFor(u, y, m, d) {
+        var name = CORNING_EVENTS[y + '-' + (m + 1) + '-' + d];
+        if (!name) return '';
+        return (corningTeamOf(u.p1) || corningTeamOf(u.p2)) ? name : '';
+      }
 
       var holidays = {
         '1-1': '元旦',
@@ -1698,6 +1726,7 @@
 
         var p1OffCount = 0, p2OffCount = 0, bothOffCount = 0, sportCount = 0;
         var act = actOf(u);
+        var hasCorning = !!(corningTeamOf(p1) || corningTeamOf(p2));
 
         for (var i = 0; i < totalCells; i++) {
           if (i % 7 === 0) html += '<tr>';
@@ -1783,6 +1812,10 @@
             cellClass += ' holiday-cell';
             var showName = mob ? shortHoliday(holidayName) : holidayName;
             badges += '<div class="holiday-icon" title="' + escHtml(holidayName) + '">' + escHtml(showName) + '</div>';
+          }
+          var corpName = hasCorning ? (CORNING_EVENTS[dk] || '') : '';
+          if (!isOther && corpName) {
+            badges += '<div class="corp-icon" title="康寧 ' + escHtml(corpName) + '">🎊 ' + escHtml(corpName) + '</div>';
           }
           if (!isOther && noteText) {
             badges += '<div class="note-icon">📝 ' + escHtml(noteText.substring(0, mob ? 3 : 6)) + (noteText.length > (mob ? 3 : 6) ? '...' : '') + '</div>';
@@ -1878,6 +1911,10 @@
         var holidayName = holidayNameFor(y, m, d);
         if (holidayName) {
           shiftInfo += '<br>🎉 假日：' + escHtml(holidayName);
+        }
+        var corpName = corpEventFor(u, y, m, d);
+        if (corpName) {
+          shiftInfo += '<br>🎊 康寧活動：' + escHtml(corpName);
         }
 
         var html = '<div class="modal-overlay" id="noteModal">' +
@@ -2205,6 +2242,8 @@
             r.days.forEach(function (dt) {
               var hn = holidayNameFor(dt.getFullYear(), dt.getMonth(), dt.getDate());
               if (hn) subs.push('🎉 ' + (dt.getMonth() + 1) + '/' + dt.getDate() + ' ' + hn);
+              var cn = corpEventFor(u, dt.getFullYear(), dt.getMonth(), dt.getDate());
+              if (cn) subs.push('🎊 ' + (dt.getMonth() + 1) + '/' + dt.getDate() + ' ' + cn);
               var nt = (u.notes || {})[dateKey(dt.getFullYear(), dt.getMonth(), dt.getDate())];
               if (nt) subs.push('📝 ' + (dt.getMonth() + 1) + '/' + dt.getDate() + ' ' + (nt.length > 12 ? nt.slice(0, 12) + '…' : nt));
               ['p1', 'p2'].forEach(function (k) {
@@ -2286,6 +2325,8 @@
                 var y = dt.getFullYear(), m = dt.getMonth(), d = dt.getDate(), md = (m + 1) + '/' + d;
                 var hn = holidayNameFor(y, m, d);
                 if (hn) out.push('　　🎉 ' + md + ' ' + hn);
+                var cn = corpEventFor(u, y, m, d);
+                if (cn) out.push('　　🎊 ' + md + ' ' + cn);
                 ['p1', 'p2'].forEach(function (pk) {
                   var e = eventOf(u, pk, y, m, d);
                   if (e && e.type === 'leave' && (who === 'both' || who === pk)) out.push('　　🗓️ ' + md + ' ' + u[pk].name + '請' + e.kind);
