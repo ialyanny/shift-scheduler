@@ -841,6 +841,7 @@
     .sal-table tr.total td { font-size: 17px; font-weight: 800; border-top: 2px solid var(--text); border-bottom: none; color: var(--green); }
     .sal-table tr.actual td { font-size: 14px; border-bottom: none; }
     .sal-warn { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; padding: 8px 10px; border-radius: 8px; font-size: 13px; margin-top: 10px; }
+    .sal-proj { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 8px 10px; border-radius: 8px; font-size: 13px; margin-bottom: 10px; }
     .sal-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
     .sal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
     .adj-row { display: flex; gap: 6px; margin-bottom: 6px; }
@@ -3190,6 +3191,11 @@
           var who = u[cfg.person === 'p2' ? 'p2' : 'p1'].name;
           html += '<p class="sal-sub">' + payY + ' 年 ' + (payM + 1) + ' 月薪資（約 ' + (payM + 1) + '/' + cfg.payDay + ' 入帳）・津貼與加班依 <b>' +
             (r.c.am + 1) + ' 月出勤</b>・依「' + escHtml(who) + '」的班表與請假／加班紀錄</p>';
+          // 出勤月還沒過完（或還沒開始）＝依排班推算，之後登記的請假／加班會自動更新
+          var td0 = new Date(), today0 = new Date(td0.getFullYear(), td0.getMonth(), td0.getDate());
+          var attStart = new Date(r.c.ay, r.c.am, 1), attEnd = new Date(r.c.ay, r.c.am + 1, 0);
+          if (attStart > today0) html += '<div class="sal-proj">🔮 推算：' + (r.c.am + 1) + ' 月還沒開始上班，金額依排班推算；之後登記的請假、加班會自動更新。</div>';
+          else if (attEnd >= today0) html += '<div class="sal-proj">🔮 推算：' + (r.c.am + 1) + ' 月出勤還沒結束，剩下的日子依排班推算；之後登記的請假、加班會自動更新。</div>';
           if (!r.fixed) html += '<div class="sal-warn">請先到「⚙️ 薪資設定」填寫底薪等金額。</div>';
           html += '<table class="sal-table">' + r.items.map(function (x) {
             return '<tr class="' + (x.amount < 0 ? 'neg' : '') + '"><td>' + escHtml(x.label) + (x.note ? '<div class="note">' + escHtml(x.note) + '</div>' : '') +
