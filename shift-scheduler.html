@@ -1302,6 +1302,7 @@
       }
 
       // ===== 請假／加班 =====
+      var TYPHOON = '颱風'; // 加班紀錄 kind：颱風天照常上班（當天改為休假日，加班費另計）
       var LEAVE_KINDS = ['特休', '彈性休', '事假', '病假', '婚假', '喪假', '公假', '其他'];
       var LEAVE_SHORT = { '特休': '特', '彈性休': '彈', '事假': '事', '病假': '病', '婚假': '婚', '喪假': '喪', '公假': '公', '其他': '假' };
       var QUOTA_KINDS = [['特休', 'annual'], ['彈性休', 'flex']];
@@ -1329,6 +1330,7 @@
       function evText(e, withShift) {
         if (!e) return '';
         if (e.type === 'leave') return e.kind + ' ' + (Number(e.days) < 1 ? '半天' : '1 天');
+        if (e.kind === TYPHOON) return '颱風天上班 ' + fmtNum(e.hours) + ' 小時';
         return '加班' + (withShift && e.shift ? '（' + shiftLabel(e.shift) + '）' : '') + ' ' + fmtNum(e.hours) + ' 小時';
       }
       function quotaOf(u, person, year) {
@@ -1970,6 +1972,10 @@
           return '<div class="shift-badge leave" title="' + escHtml(name + ' ' + ev.kind) + '">' +
             (mob ? short + (LEAVE_SHORT[ev.kind] || '假') : escHtml(name) + ': ' + escHtml(ev.kind)) + '</div>';
         }
+        if (ev && ev.type === 'ot' && ev.kind === TYPHOON) {
+          return '<div class="shift-badge ' + shift + ' ot" title="' + escHtml(name + ' 颱風天上班 ' + fmtNum(ev.hours) + ' 小時') + '">' +
+            (mob ? short + '颱' + shortShiftLabel(shift) : escHtml(name) + ': 🌀 颱風' + shiftLabel(shift)) + '</div>';
+        }
         if (ev && ev.type === 'ot' && ev.shift) {
           return '<div class="shift-badge ' + shift + ' ot" title="' + escHtml(name + ' 加班 ' + fmtNum(ev.hours) + ' 小時') + '">' +
             (mob ? short + '加' + shortShiftLabel(shift) : escHtml(name) + ': 加' + shiftLabel(shift)) + '</div>';
@@ -2143,8 +2149,8 @@
         } else {
           var shiftOpts = base === 'off' || !base
             ? [['day', '加日班'], ['night', '加夜班']]
-            : [['', '維持原班（只記時數）']];
-          var shift0 = cur0 ? cur0.shift : shiftOpts[0][0];
+            : [['', '維持原班（只記時數）'], ['typhoon', '颱風天上班（當天改休假日，2.5 倍）']];
+          var shift0 = cur0 ? (cur0.kind === TYPHOON ? 'typhoon' : cur0.shift) : shiftOpts[0][0];
           var hours0 = cur0 ? cur0.hours : (base === 'off' || !base ? 12 : 2);
           html += '<div class="ev-row">班別 <select class="ev-shift">' + shiftOpts.map(function (o) {
             return '<option value="' + o[0] + '"' + (o[0] === shift0 ? ' selected' : '') + '>' + o[1] + '</option>';
@@ -2170,6 +2176,13 @@
         }
         slot.querySelectorAll('select, input').forEach(function (el) { el.addEventListener('change', updateLeft); });
         updateLeft();
+        // 選颱風天上班時，時數預設整班 12 小時
+        var shiftSel = slot.querySelector('.ev-shift');
+        if (shiftSel) shiftSel.addEventListener('change', function () {
+          var hi = slot.querySelector('.ev-hours');
+          if (shiftSel.value === 'typhoon' && Number(hi.value) === 2) hi.value = 12;
+          else if (shiftSel.value === '' && Number(hi.value) === 12) hi.value = 2;
+        });
 
         slot.querySelector('.ev-cancel').addEventListener('click', function () { slot.innerHTML = ''; });
         slot.querySelector('.ev-save').addEventListener('click', function () {
@@ -2179,7 +2192,10 @@
           } else {
             var h = Number(slot.querySelector('.ev-hours').value);
             if (!(h > 0)) { showToast('請輸入加班時數'); return; }
-            e = { type: 'ot', kind: '', days: 0, shift: slot.querySelector('.ev-shift').value, hours: h };
+            var sv = slot.querySelector('.ev-shift').value;
+            e = sv === 'typhoon'
+              ? { type: 'ot', kind: TYPHOON, days: 0, shift: base, hours: h }
+              : { type: 'ot', kind: '', days: 0, shift: sv, hours: h };
           }
           if (!u.events) u.events = {};
           u.events[evKey(person, dk)] = e;
@@ -2993,7 +3009,7 @@
         profileId: '', person: 'p1',
         base: 0, cert: 0, duty: 0,
         dayAllow: 100, nightAllow: 540, envAllow: 80,
-        dailyOt: 0.5, shiftHours: 12, otRate: 1.67, holRate: 2.5,
+        dailyOt: 0.5, shiftHours: 12, otRate: 1.67, holRate: 2.5, typhoonRate: 2.5,
         labor: 0, health: 0, welfareRate: 0.5, payDay: 23
       };
       var SAL_NUM_FIELDS = [
@@ -3001,7 +3017,7 @@
         ['labor', '勞保費（每月扣）'], ['health', '健保費（每月扣）'],
         ['dayAllow', '日班津貼／天'], ['nightAllow', '夜班津貼／天'], ['envAllow', '環境津貼／天'],
         ['dailyOt', '每天固定加班時數'], ['shiftHours', '每班時數'],
-        ['otRate', '加班費倍率'], ['holRate', '國假加班倍率'],
+        ['otRate', '加班費倍率'], ['holRate', '國假加班倍率'], ['typhoonRate', '颱風天加班倍率'],
         ['welfareRate', '福利金 %'], ['payDay', '每月發薪日']
       ];
 
@@ -3105,13 +3121,16 @@
         var at = new Date(payY, payM - 1, 1);
         var ay = at.getFullYear(), am = at.getMonth();
         var dim = new Date(ay, am + 1, 0).getDate();
-        var c = { ay: ay, am: am, worked: 0, dayN: 0, nightN: 0, holWorked: 0, extraOt: 0, offOt: 0, holOt: 0, personal: 0, sick: 0 };
+        var c = { ay: ay, am: am, worked: 0, dayN: 0, nightN: 0, holWorked: 0, extraOt: 0, offOt: 0, holOt: 0, typhoonOt: 0 };
         for (var d = 1; d <= dim; d++) {
           var base = baseShift(u, person, ay, am, d);
           var s = effShift(u, person, ay, am, d);
           var e = eventOf(u, person, ay, am, d);
           var hol = isNatHoliday(ay, am, d);
-          if (s === 'day' || s === 'night') {
+          if (e && e.type === 'ot' && e.kind === TYPHOON) {
+            // 颱風天上班：當天改為休假日（不算上班日的津貼），工時另以颱風加班倍率計
+            c.typhoonOt += Number(e.hours || 0);
+          } else if (s === 'day' || s === 'night') {
             if (e && e.type === 'ot' && e.shift && (base === 'off' || !base)) {
               // 休假日被叫來加班
               if (hol) c.holOt += Number(e.hours || 0); else c.offOt += Number(e.hours || 0);
@@ -3121,10 +3140,6 @@
               if (hol) c.holWorked++;
               if (e && e.type === 'ot') c.extraOt += Number(e.hours || 0);
             }
-          }
-          if (e && e.type === 'leave') {
-            if (e.kind === '事假') c.personal += Number(e.days || 0);
-            if (e.kind === '病假') c.sick += Number(e.days || 0);
           }
         }
         var n = function (k) { return Number(cfg[k]) || 0; };
@@ -3145,13 +3160,12 @@
         add('輪休日加班', c.offOt * W, fmtNum(c.offOt) + ' 小時');
         add('排班國假加班', c.holWorked * n('shiftHours') * V, c.holWorked + ' 天 × ' + fmtNum(n('shiftHours')) + ' 小時');
         add('國假加班費', c.holOt * V * n('holRate'), fmtNum(c.holOt) + ' 小時');
+        add('颱風天加班', c.typhoonOt * V * n('typhoonRate'), fmtNum(c.typhoonOt) + ' 小時 × ' + fmtNum(n('typhoonRate')) + ' 倍');
         var mon = (salary.months || {})[monthKey(payY, payM)] || {};
         (mon.adj || []).forEach(function (a) { if (Number(a.amount) > 0) add(a.label || '其他加項', Number(a.amount), '本月加扣款'); });
         add('勞保費', -n('labor'));
         add('健保費', -n('health'));
         add('福利金', -fixed * n('welfareRate') / 100, fmtNum(n('welfareRate')) + '%');
-        add('事假扣薪（估）', -fixed / 30 * c.personal, fmtNum(c.personal) + ' 天');
-        add('病假半薪（估）', -fixed / 30 * 0.5 * c.sick, fmtNum(c.sick) + ' 天');
         (mon.adj || []).forEach(function (a) { if (Number(a.amount) < 0) add(a.label || '其他扣項', Number(a.amount), '本月加扣款'); });
         var net = items.reduce(function (s, x) { return s + x.amount; }, 0);
         return { items: items, net: net, V: V, W: W, c: c, actual: mon.actual, fixed: fixed };
@@ -3187,7 +3201,7 @@
               : '') +
             '</table>';
           html += '<p class="sal-sub">時薪 ' + fmtNum(Math.round(r.V * 100) / 100) + '・加班時薪 ' + fmtNum(Math.round(r.W * 100) / 100) +
-            '。所得稅、獎金、餐費等每月不同，請用「本月加扣款」補上。事假／病假扣款為估算。</p>';
+            '。所得稅、獎金、餐費等每月不同，請用「本月加扣款」補上。</p>';
         }
         if (privCloud === 'missing') html += '<div class="sal-warn">⚠️ 雲端還沒建立私人資料表，薪資目前只存在這台裝置。請在 Supabase 執行 <b>supabase-shift-setup.sql</b> 的 v2.4 段落。</div>';
         else if (privCloud === false) html += '<div class="sal-warn">⚠️ 目前無法同步到雲端，薪資已存在這台裝置，連上網路後會自動補傳。</div>';
