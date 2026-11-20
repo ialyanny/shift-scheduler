@@ -114,3 +114,24 @@ grant select, insert, update, delete on public.shift_ws_events to anon, authenti
 
 -- v2.3：固定函式的 search_path（Supabase 安全性建議）
 alter function public.shift_req_ws() set search_path = '';
+
+-- v2.4：私人資料（薪資）。用另一把「私人金鑰」(x-shift-priv) 存取，
+-- 和班表空間 (x-shift-ws) 完全分開：拿到班表連結的家人讀不到薪資。
+create or replace function public.shift_req_priv() returns text
+language sql stable set search_path = '' as $$
+  select coalesce(nullif(current_setting('request.headers', true), '')::json->>'x-shift-priv', '')
+$$;
+
+create table if not exists public.shift_private (
+  priv text not null check (length(priv) >= 32),
+  doc text not null,
+  data jsonb not null default '{}'::jsonb,
+  updated_at bigint not null default 0,
+  primary key (priv, doc)
+);
+alter table public.shift_private enable row level security;
+drop policy if exists "own private" on public.shift_private;
+create policy "own private" on public.shift_private
+  for all to anon, authenticated
+  using (priv = public.shift_req_priv()) with check (priv = public.shift_req_priv());
+grant select, insert, update, delete on public.shift_private to anon, authenticated;

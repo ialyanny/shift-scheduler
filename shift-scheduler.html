@@ -829,6 +829,23 @@
       font-weight: 500;
     }
 
+    .salary-card summary { font-size: 18px; font-weight: 700; cursor: pointer; list-style-position: inside; }
+    .salary-card .sal-lock { font-size: 12px; font-weight: 600; color: var(--muted); margin-left: 6px; }
+    .sal-sub { font-size: 13px; color: var(--muted); margin: 10px 0; }
+    .sal-sub b { color: var(--text); }
+    .sal-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .sal-table td { padding: 7px 4px; border-bottom: 1px dashed var(--border); vertical-align: top; }
+    .sal-table td.amt { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 600; }
+    .sal-table .note { font-size: 12px; color: var(--muted); }
+    .sal-table tr.neg td.amt { color: var(--error); }
+    .sal-table tr.total td { font-size: 17px; font-weight: 800; border-top: 2px solid var(--text); border-bottom: none; color: var(--green); }
+    .sal-table tr.actual td { font-size: 14px; border-bottom: none; }
+    .sal-warn { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; padding: 8px 10px; border-radius: 8px; font-size: 13px; margin-top: 10px; }
+    .sal-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .sal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+    .adj-row { display: flex; gap: 6px; margin-bottom: 6px; }
+    .adj-row input { flex: 1; min-width: 0; padding: 9px 10px; font-size: 14px; border: 1px solid var(--border); border-radius: 8px; }
+    .adj-row input.adj-amt { flex: 0 0 110px; }
     .help-text {
       font-size: 12px;
       color: var(--muted);
@@ -1088,6 +1105,7 @@
     </div>
 
     <div class="card leave-card" id="leaveCard"></div>
+    <div class="card salary-card" id="salaryCard" style="display:none"></div>
   </div>
 
   <div class="toast" id="toast"></div>
@@ -1126,6 +1144,8 @@
         '2027-1-11': '小尾牙',
         '2027-1-18': '大尾牙'
       };
+      // 康寧彈性假日：2027 公司班表上加框的日期（全年 4 天，可請彈性休）
+      var CORNING_FLEX = { '2027-1-2': 1, '2027-3-29': 1, '2027-10-31': 1, '2027-11-12': 1 };
       function corpEventFor(u, y, m, d) {
         var name = CORNING_EVENTS[y + '-' + (m + 1) + '-' + d];
         if (!name) return '';
@@ -1652,10 +1672,10 @@
       }
 
       function refreshQuiet() {
-        if (!sb) return;
         clearTimeout(syncTimer);
         syncTimer = setTimeout(function () {
-          fetchAll().then(applyData).catch(function () {});
+          if (sb) fetchAll().then(applyData).catch(function () {});
+          fetchPriv();
         }, 300);
       }
 
@@ -1901,6 +1921,9 @@
           if (!isOther && corpName) {
             badges += '<div class="corp-icon" title="康寧 ' + escHtml(corpName) + '">🎊 ' + escHtml(corpName) + '</div>';
           }
+          if (!isOther && hasCorning && CORNING_FLEX[dk]) {
+            badges += '<div class="corp-icon" title="康寧彈性假日（可請彈性休）">🌿 ' + (mob ? '彈性' : '彈性假日') + '</div>';
+          }
           if (!isOther && noteText) {
             badges += '<div class="note-icon">📝 ' + escHtml(noteText.substring(0, mob ? 3 : 6)) + (noteText.length > (mob ? 3 : 6) ? '...' : '') + '</div>';
           }
@@ -1933,6 +1956,7 @@
         }
         $('summaryBox').innerHTML = summaryHtml;
         renderLeaveCard();
+        renderSalaryCard();
       }
 
       $('calendarBody').addEventListener('click', function(e) {
@@ -2004,6 +2028,9 @@
         var corpName = corpEventFor(u, y, m, d);
         if (corpName) {
           shiftInfo += '<br>🎊 康寧活動：' + escHtml(corpName);
+        }
+        if (CORNING_FLEX[dateKey(y, m, d)] && (corningTeamOf(u.p1) || corningTeamOf(u.p2))) {
+          shiftInfo += '<br>🌿 康寧彈性假日（可請彈性休）';
         }
 
         var html = '<div class="modal-overlay" id="noteModal">' +
@@ -2204,8 +2231,10 @@
           html += '</div>';
         });
         html += '</div><p class="help-text" style="margin-top:10px">點日曆上的日期即可登記請假或加班。' +
-          '特休天數請依公司核給填寫' + (persons.some(function (k) { return corningTeamOf(u[k]); }) ? '，康寧員工另有 4 天彈性休（已預先帶入）' : '') + '。</p>';
+          '特休天數請依公司核給填寫' + (persons.some(function (k) { return corningTeamOf(u[k]); }) ? '，康寧員工另有 4 天彈性休（已預先帶入）' : '') + '。</p>' +
+          (privKey ? '' : '<button type="button" class="btn-preset" id="btnSalarySetup">💰 私人薪資試算（只有你看得到）</button>');
         $('leaveCard').innerHTML = html;
+        if ($('btnSalarySetup')) $('btnSalarySetup').addEventListener('click', openSalarySetup);
         $('leaveCard').querySelectorAll('.quota-row input').forEach(function (inp) {
           inp.addEventListener('change', function () {
             var v = Number(inp.value);
@@ -2950,8 +2979,409 @@
         if (id) handleIncomingWs(id);
       });
 
+      // ===== 私人薪資（只有持有私人金鑰的裝置看得到）=====
+      // 薪資資料存在另一張表 shift_private，資料庫只回傳請求標頭 x-shift-priv 相符的資料。
+      // 班表連結（#ws=）不含這把金鑰，所以拿到班表連結的家人也讀不到薪資。
+      var PRIV_KEY = 'shift_priv_key_v1';
+      var PRIV_CACHE = 'shift_priv_cache_v1:';
+      var PRIV_DIRTY = 'shift_priv_dirty_v1:';
+      var SAL_OPEN = 'shift_priv_open_v1';
+      var privKey = null, sbPriv = null, salary = null;
+      var privCloud = null; // null=未知 true=已同步 'missing'=雲端未設定 false=連線失敗
+      // 預設值依康寧薪資單（2026/10）核對
+      var SAL_DEFAULT = {
+        profileId: '', person: 'p1',
+        base: 0, cert: 0, duty: 0,
+        dayAllow: 100, nightAllow: 540, envAllow: 80,
+        dailyOt: 0.5, shiftHours: 12, otRate: 1.67, holRate: 2.5,
+        labor: 0, health: 0, welfareRate: 0.5, payDay: 23
+      };
+      var SAL_NUM_FIELDS = [
+        ['base', '底薪'], ['cert', '認證津貼'], ['duty', '職務津貼'],
+        ['labor', '勞保費（每月扣）'], ['health', '健保費（每月扣）'],
+        ['dayAllow', '日班津貼／天'], ['nightAllow', '夜班津貼／天'], ['envAllow', '環境津貼／天'],
+        ['dailyOt', '每天固定加班時數'], ['shiftHours', '每班時數'],
+        ['otRate', '加班費倍率'], ['holRate', '國假加班倍率'],
+        ['welfareRate', '福利金 %'], ['payDay', '每月發薪日']
+      ];
+
+      function salCfg() {
+        var c = (salary && salary.cfg) || {};
+        var out = {};
+        Object.keys(SAL_DEFAULT).forEach(function (k) { out[k] = (c[k] === undefined || c[k] === null || c[k] === '') ? SAL_DEFAULT[k] : c[k]; });
+        return out;
+      }
+
+      function makePrivClient() {
+        if (typeof supabase === 'undefined' || !privKey) return null;
+        try {
+          return supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            global: { headers: { 'x-shift-priv': privKey } },
+            auth: { persistSession: false, autoRefreshToken: false }
+          });
+        } catch (e) { return null; }
+      }
+
+      function loadPriv(key) {
+        privKey = isWsId(key) ? key : null;
+        salary = null; privCloud = null;
+        if (!privKey) { sbPriv = null; return; }
+        lsSet(PRIV_KEY, privKey);
+        try { salary = JSON.parse(lsGet(PRIV_CACHE + privKey) || 'null'); } catch (e) { salary = null; }
+        if (!salary || typeof salary !== 'object') salary = { cfg: {}, months: {}, updated_at: 0 };
+        if (!salary.cfg) salary.cfg = {};
+        if (!salary.months) salary.months = {};
+        sbPriv = makePrivClient();
+      }
+
+      function savePrivLocal() {
+        if (!privKey) return;
+        lsSet(PRIV_CACHE + privKey, JSON.stringify(salary));
+      }
+
+      function privMissing(err) {
+        var s = String((err && (err.code || '')) + ' ' + (err && err.message || ''));
+        return /42P01|PGRST20[45]|shift_private|does not exist|schema cache/i.test(s);
+      }
+
+      function pushPriv() {
+        if (!privKey) return;
+        lsSet(PRIV_DIRTY + privKey, '1');
+        if (!sbPriv) return;
+        var key = privKey;
+        Promise.resolve(sbPriv.from('shift_private').upsert([{ priv: key, doc: 'salary', data: salary, updated_at: salary.updated_at || Date.now() }], { onConflict: 'priv,doc' }))
+          .then(function (res) {
+            if (key !== privKey) return;
+            if (res && res.error) { privCloud = privMissing(res.error) ? 'missing' : false; renderSalaryCard(); return; }
+            lsSet(PRIV_DIRTY + key, '');
+            if (privCloud !== true) { privCloud = true; renderSalaryCard(); }
+          }, function () { if (key === privKey) { privCloud = false; renderSalaryCard(); } });
+      }
+
+      function saveSalary() {
+        salary.updated_at = Date.now();
+        savePrivLocal();
+        pushPriv();
+        renderSalaryCard();
+      }
+
+      function fetchPriv() {
+        if (!sbPriv || !privKey) return;
+        var key = privKey;
+        Promise.resolve(sbPriv.from('shift_private').select('data, updated_at').eq('doc', 'salary')).then(function (res) {
+          if (key !== privKey) return;
+          if (res && res.error) { privCloud = privMissing(res.error) ? 'missing' : false; renderSalaryCard(); return; }
+          var row = (res.data || [])[0];
+          var localNewer = !row || Number(row.updated_at) < Number(salary.updated_at || 0);
+          if (lsGet(PRIV_DIRTY + key) || (localNewer && salary.updated_at)) { pushPriv(); return; }
+          if (row && Number(row.updated_at) > Number(salary.updated_at || 0) && !$('modalContainer').firstChild) {
+            salary = row.data || { cfg: {}, months: {} };
+            if (!salary.cfg) salary.cfg = {};
+            if (!salary.months) salary.months = {};
+            salary.updated_at = Number(row.updated_at);
+            savePrivLocal();
+          }
+          privCloud = true;
+          renderSalaryCard();
+        }, function () { if (key === privKey) { privCloud = false; renderSalaryCard(); } });
+      }
+
+      // 計算薪資用的「國定假日」＝日曆上的紅字；週末的連假、補假、政府彈性放假不算
+      function isNatHoliday(y, m, d) {
+        var n = holidayNameFor(y, m, d);
+        return !!n && !/連假|彈性|補假/.test(n);
+      }
+
+      function salProfile(cfg) {
+        for (var i = 0; i < profiles.length; i++) if (profiles[i].id === cfg.profileId) return profiles[i];
+        return null;
+      }
+
+      function monthKey(y, m) { return y + '-' + (m + 1); }
+
+      // 發薪月 payY/payM（0 起算）：固定薪＋上個月出勤計算的津貼與加班費
+      function computeSalary(u, cfg, payY, payM) {
+        var person = cfg.person === 'p2' ? 'p2' : 'p1';
+        var at = new Date(payY, payM - 1, 1);
+        var ay = at.getFullYear(), am = at.getMonth();
+        var dim = new Date(ay, am + 1, 0).getDate();
+        var c = { ay: ay, am: am, worked: 0, dayN: 0, nightN: 0, holWorked: 0, extraOt: 0, offOt: 0, holOt: 0, personal: 0, sick: 0 };
+        for (var d = 1; d <= dim; d++) {
+          var base = baseShift(u, person, ay, am, d);
+          var s = effShift(u, person, ay, am, d);
+          var e = eventOf(u, person, ay, am, d);
+          var hol = isNatHoliday(ay, am, d);
+          if (s === 'day' || s === 'night') {
+            if (e && e.type === 'ot' && e.shift && (base === 'off' || !base)) {
+              // 休假日被叫來加班
+              if (hol) c.holOt += Number(e.hours || 0); else c.offOt += Number(e.hours || 0);
+            } else {
+              c.worked++;
+              if (s === 'day') c.dayN++; else c.nightN++;
+              if (hol) c.holWorked++;
+              if (e && e.type === 'ot') c.extraOt += Number(e.hours || 0);
+            }
+          }
+          if (e && e.type === 'leave') {
+            if (e.kind === '事假') c.personal += Number(e.days || 0);
+            if (e.kind === '病假') c.sick += Number(e.days || 0);
+          }
+        }
+        var n = function (k) { return Number(cfg[k]) || 0; };
+        var fixed = n('base') + n('cert') + n('duty');
+        var shiftAllow = c.dayN * n('dayAllow') + c.nightN * n('nightAllow');
+        var env = c.worked * n('envAllow');
+        var V = (fixed * 14 / 12 + shiftAllow + env) / 240;
+        var W = V * n('otRate');
+        var otHours = c.worked * n('dailyOt') + c.extraOt;
+        var items = [];
+        function add(label, amount, note) { amount = Math.round(amount); if (amount) items.push({ label: label, amount: amount, note: note || '' }); }
+        add('底薪', n('base'));
+        add('認證津貼', n('cert'));
+        add('職務津貼', n('duty'));
+        add('輪班津貼', shiftAllow, '日班 ' + c.dayN + ' 天、夜班 ' + c.nightN + ' 天');
+        add('環境津貼', env, '上班 ' + c.worked + ' 天');
+        add('平日加班費', otHours * W, fmtNum(otHours) + ' 小時');
+        add('輪休日加班', c.offOt * W, fmtNum(c.offOt) + ' 小時');
+        add('排班國假加班', c.holWorked * n('shiftHours') * V, c.holWorked + ' 天 × ' + fmtNum(n('shiftHours')) + ' 小時');
+        add('國假加班費', c.holOt * V * n('holRate'), fmtNum(c.holOt) + ' 小時');
+        var mon = (salary.months || {})[monthKey(payY, payM)] || {};
+        (mon.adj || []).forEach(function (a) { if (Number(a.amount) > 0) add(a.label || '其他加項', Number(a.amount), '本月加扣款'); });
+        add('勞保費', -n('labor'));
+        add('健保費', -n('health'));
+        add('福利金', -fixed * n('welfareRate') / 100, fmtNum(n('welfareRate')) + '%');
+        add('事假扣薪（估）', -fixed / 30 * c.personal, fmtNum(c.personal) + ' 天');
+        add('病假半薪（估）', -fixed / 30 * 0.5 * c.sick, fmtNum(c.sick) + ' 天');
+        (mon.adj || []).forEach(function (a) { if (Number(a.amount) < 0) add(a.label || '其他扣項', Number(a.amount), '本月加扣款'); });
+        var net = items.reduce(function (s, x) { return s + x.amount; }, 0);
+        return { items: items, net: net, V: V, W: W, c: c, actual: mon.actual, fixed: fixed };
+      }
+
+      function money(n) { return (n < 0 ? '−' : '') + Math.abs(Math.round(n)).toLocaleString('zh-TW'); }
+
+      function renderSalaryCard() {
+        var box = $('salaryCard');
+        if (!box) return;
+        if (!privKey || !salary) { box.style.display = 'none'; box.innerHTML = ''; return; }
+        box.style.display = '';
+        var cfg = salCfg();
+        var u = salProfile(cfg);
+        var payY = currentYear, payM = currentMonth;
+        var open = lsGet(SAL_OPEN) === '1';
+        var html = '<details id="salDetails"' + (open ? ' open' : '') + '><summary>💰 我的薪資 <span class="sal-lock">🔒 只有這台裝置看得到</span></summary>';
+        if (!u || !u[cfg.person === 'p2' ? 'p2' : 'p1'].pattern) {
+          html += '<p class="sal-sub">還沒選擇要用哪一份班表計算，請按「⚙️ 薪資設定」。</p>';
+        } else {
+          var r = computeSalary(u, cfg, payY, payM);
+          var who = u[cfg.person === 'p2' ? 'p2' : 'p1'].name;
+          html += '<p class="sal-sub">' + payY + ' 年 ' + (payM + 1) + ' 月薪資（約 ' + (payM + 1) + '/' + cfg.payDay + ' 入帳）・津貼與加班依 <b>' +
+            (r.c.am + 1) + ' 月出勤</b>・依「' + escHtml(who) + '」的班表與請假／加班紀錄</p>';
+          if (!r.fixed) html += '<div class="sal-warn">請先到「⚙️ 薪資設定」填寫底薪等金額。</div>';
+          html += '<table class="sal-table">' + r.items.map(function (x) {
+            return '<tr class="' + (x.amount < 0 ? 'neg' : '') + '"><td>' + escHtml(x.label) + (x.note ? '<div class="note">' + escHtml(x.note) + '</div>' : '') +
+              '</td><td class="amt">' + money(x.amount) + '</td></tr>';
+          }).join('') +
+            '<tr class="total"><td>預估實領</td><td class="amt">' + money(r.net) + '</td></tr>' +
+            (r.actual !== undefined && r.actual !== null && r.actual !== ''
+              ? '<tr class="actual"><td>實際入帳<div class="note">差額 ' + money(Number(r.actual) - r.net) + '</div></td><td class="amt">' + money(Number(r.actual)) + '</td></tr>'
+              : '') +
+            '</table>';
+          html += '<p class="sal-sub">時薪 ' + fmtNum(Math.round(r.V * 100) / 100) + '・加班時薪 ' + fmtNum(Math.round(r.W * 100) / 100) +
+            '。所得稅、獎金、餐費等每月不同，請用「本月加扣款」補上。事假／病假扣款為估算。</p>';
+        }
+        if (privCloud === 'missing') html += '<div class="sal-warn">⚠️ 雲端還沒建立私人資料表，薪資目前只存在這台裝置。請在 Supabase 執行 <b>supabase-shift-setup.sql</b> 的 v2.4 段落。</div>';
+        else if (privCloud === false) html += '<div class="sal-warn">⚠️ 目前無法同步到雲端，薪資已存在這台裝置，連上網路後會自動補傳。</div>';
+        html += '<div class="sal-btns">' +
+          '<button type="button" class="btn-user-sub" id="salAdj">＋ 本月加扣款／實際入帳</button>' +
+          '<button type="button" class="btn-user-sub" id="salCfgBtn">⚙️ 薪資設定</button>' +
+          '<button type="button" class="btn-user-sub" id="salKeyBtn">🔑 私人連結</button></div></details>';
+        box.innerHTML = html;
+        $('salDetails').addEventListener('toggle', function () { lsSet(SAL_OPEN, this.open ? '1' : ''); });
+        $('salAdj').addEventListener('click', function () { openSalaryAdj(payY, payM); });
+        $('salCfgBtn').addEventListener('click', openSalarySettings);
+        $('salKeyBtn').addEventListener('click', openPrivKeyDialog);
+      }
+
+      function openSalarySettings() {
+        var cfg = salCfg();
+        if (!cfg.profileId) cfg.profileId = currentId;
+        var opts = '';
+        profiles.forEach(function (p) {
+          ['p1', 'p2'].forEach(function (k) {
+            if (!p[k].pattern) return;
+            var v = p.id + '|' + k;
+            opts += '<option value="' + escHtml(v) + '"' + (p.id === cfg.profileId && k === cfg.person ? ' selected' : '') + '>' +
+              escHtml(p.name + '｜' + p[k].name) + '</option>';
+          });
+        });
+        var fields = SAL_NUM_FIELDS.map(function (f) {
+          return '<div class="field"><label>' + f[1] + '</label><input type="number" step="any" min="0" id="sal_' + f[0] + '" value="' + escHtml(cfg[f[0]]) + '"></div>';
+        }).join('');
+        openDialog({
+          title: '⚙️ 薪資設定',
+          html: '<p class="help-text" style="margin-bottom:10px">金額只存在你的私人空間，家人用班表連結看不到。預設規則依康寧薪資單核對：時薪＝（底薪＋認證＋職務）×14÷12＋輪班津貼＋環境津貼，再 ÷240。</p>' +
+            '<div class="field"><label>用哪一份班表計算</label><select id="sal_who">' + (opts || '<option value="">（請先設定輪班規則）</option>') + '</select></div>' +
+            '<div class="sal-grid">' + fields + '</div>',
+          buttons: [
+            { label: '取消' },
+            { label: '儲存', cls: 'btn-save', onClick: function () {
+              var who = ($('sal_who').value || '').split('|');
+              var c = salary.cfg = salary.cfg || {};
+              if (who[0]) { c.profileId = who[0]; c.person = who[1] || 'p1'; }
+              SAL_NUM_FIELDS.forEach(function (f) {
+                var v = Number($('sal_' + f[0]).value);
+                c[f[0]] = isFinite(v) && v >= 0 ? v : SAL_DEFAULT[f[0]];
+              });
+              saveSalary();
+              showToast('已儲存薪資設定');
+            } }
+          ]
+        });
+      }
+
+      function openSalaryAdj(payY, payM) {
+        var mk = monthKey(payY, payM);
+        var mon = (salary.months || {})[mk] || {};
+        var rows = (mon.adj || []).slice();
+        if (!rows.length) rows = [{ label: '', amount: '' }];
+        function rowHtml(a) {
+          return '<div class="adj-row"><input type="text" class="name-input adj-label" maxlength="20" placeholder="例如：代扣所得稅、獎金" value="' + escHtml(a.label || '') + '">' +
+            '<input type="number" step="1" class="adj-amt" placeholder="金額" value="' + escHtml(a.amount) + '"></div>';
+        }
+        openDialog({
+          title: payY + ' 年 ' + (payM + 1) + ' 月加扣款',
+          html: '<p class="help-text" style="margin-bottom:8px">加項填正數（獎金、活動獎金），扣項填負數（所得稅 −1200、代扣餐費 −210）。</p>' +
+            '<div id="adjRows">' + rows.map(rowHtml).join('') + '</div>' +
+            '<button type="button" class="btn-preset" id="adjMore">＋ 再加一項</button>' +
+            '<hr class="dlg-sep"><div class="field"><label>實際入帳金額（選填，用來對照）</label><input type="number" step="1" id="adjActual" value="' + escHtml(mon.actual === undefined || mon.actual === null ? '' : mon.actual) + '"></div>',
+          buttons: [
+            { label: '取消' },
+            { label: '儲存', cls: 'btn-save', onClick: function () {
+              var adj = [];
+              $('adjRows').querySelectorAll('.adj-row').forEach(function (r) {
+                var label = r.querySelector('.adj-label').value.trim();
+                var amt = Number(r.querySelector('.adj-amt').value);
+                if (amt && isFinite(amt)) adj.push({ label: label, amount: amt });
+              });
+              var act = $('adjActual').value.trim();
+              var m2 = {};
+              if (adj.length) m2.adj = adj;
+              if (act !== '' && isFinite(Number(act))) m2.actual = Number(act);
+              if (!salary.months) salary.months = {};
+              if (m2.adj || m2.actual !== undefined) salary.months[mk] = m2; else delete salary.months[mk];
+              saveSalary();
+              showToast('已儲存');
+            } }
+          ]
+        });
+        $('adjMore').addEventListener('click', function () {
+          $('adjRows').insertAdjacentHTML('beforeend', rowHtml({ label: '', amount: '' }));
+        });
+      }
+
+      function privLink(key) { return location.origin + location.pathname + '#priv=' + key; }
+
+      function openPrivKeyDialog() {
+        var link = privLink(privKey);
+        openDialog({
+          title: '🔑 私人薪資連結',
+          html: '<p class="help-text" style="font-size:13px;margin-bottom:10px">換手機或在其他裝置看薪資時，用這條連結找回。<br>' +
+            '<b>只給自己，不要傳給任何人（包括家人）</b>；它和班表連結是分開的，班表連結不會帶出薪資。</p>' +
+            '<div class="jump-row"><input type="text" class="share-input" id="privLinkInput" readonly value="' + escHtml(link) + '"></div>' +
+            '<div class="jump-row"><button type="button" class="btn-user-add" id="privCopy" style="flex:1">複製連結</button></div>' +
+            '<hr class="dlg-sep"><button type="button" class="btn-link-danger" id="privForget">從這台裝置移除薪資（雲端資料保留，可用連結找回）</button>',
+          buttons: [{ label: '關閉' }]
+        });
+        $('privCopy').addEventListener('click', function () {
+          copyText(link).then(function () { showToast('已複製，請存在只有自己看得到的地方'); }, function () { $('privLinkInput').select(); showToast('請手動複製'); });
+        });
+        $('privForget').addEventListener('click', function () {
+          openDialog({
+            title: '從這台裝置移除薪資？',
+            html: '<p class="help-text" style="font-size:14px">移除後這台裝置就看不到薪資。之後要用下面的私人連結才能找回，請先確認已存好：</p>' +
+              '<div class="jump-row"><input type="text" class="share-input" readonly value="' + escHtml(link) + '"></div>',
+            buttons: [
+              { label: '取消' },
+              { label: '移除', cls: 'btn-delete', onClick: function () {
+                var k = privKey;
+                lsSet(PRIV_KEY, '');
+                try { localStorage.removeItem(PRIV_CACHE + k); localStorage.removeItem(PRIV_DIRTY + k); } catch (e) {}
+                loadPriv(null);
+                renderCalendar();
+                showToast('已從這台裝置移除');
+              } }
+            ]
+          });
+        });
+      }
+
+      function openSalarySetup() {
+        openDialog({
+          title: '💰 私人薪資試算',
+          html: '<p class="help-text" style="font-size:14px;margin-bottom:10px">依你的班表、請假與加班紀錄自動估算每月薪資。<br>' +
+            '薪資存在<b>獨立的私人空間</b>：家人就算有班表連結也看不到金額（請假、加班紀錄本身仍是共用的）。</p>' +
+            '<div class="field"><label>已經有私人連結？貼上後按「找回」</label><div class="jump-row">' +
+            '<input type="text" class="share-input" id="privJoin" placeholder="貼上 #priv= 連結"><button type="button" class="btn-user-sub" id="privJoinBtn">找回</button></div></div>',
+          buttons: [
+            { label: '取消' },
+            { label: '建立我的私人薪資', cls: 'btn-save', onClick: function () {
+              loadPriv(randomHex(24));
+              salary.cfg = { profileId: currentId, person: 'p1' };
+              salary.updated_at = Date.now();
+              savePrivLocal();
+              pushPriv();
+              lsSet(SAL_OPEN, '1');
+              renderCalendar();
+              setTimeout(openSalarySettings, 0);
+            } }
+          ]
+        });
+        $('privJoinBtn').addEventListener('click', function () {
+          var m = String($('privJoin').value || '').match(/priv=([0-9a-f]{32,128})/i) || String($('privJoin').value || '').trim().match(/^([0-9a-f]{32,128})$/i);
+          if (!m) { showToast('連結格式不正確'); return; }
+          closeModal();
+          usePrivKey(m[1].toLowerCase());
+        });
+      }
+
+      function usePrivKey(key) {
+        loadPriv(key);
+        lsSet(SAL_OPEN, '1');
+        renderCalendar();
+        fetchPriv();
+        showToast('已開啟私人薪資');
+      }
+
+      function hashPriv() {
+        var m = location.hash.match(/priv=([0-9a-f]{32,128})/i);
+        return m ? m[1].toLowerCase() : null;
+      }
+
+      function handleIncomingPriv(key) {
+        clearHash();
+        if (!key || key === privKey) return;
+        if (!privKey) { usePrivKey(key); return; }
+        openDialog({
+          title: '換成這份私人薪資？',
+          html: '<p class="help-text" style="font-size:14px">這台裝置已經有另一份私人薪資。換過去之後，原本那份要用它自己的私人連結才能找回。</p>',
+          sticky: true,
+          buttons: [
+            { label: '保留原本的' },
+            { label: '換過去', cls: 'btn-save', onClick: function () { usePrivKey(key); } }
+          ]
+        });
+      }
+
+      window.addEventListener('hashchange', function () {
+        var k = hashPriv();
+        if (k) handleIncomingPriv(k);
+      });
+
       // ===== 啟動 =====
       var incoming = hashWs();
+      var incomingPriv = hashPriv();
+      if (incomingPriv) clearHash();
+      loadPriv(lsGet(PRIV_KEY));
       var storedWs = lsGet(WS_KEY);
       if (!isWsId(storedWs)) storedWs = null;
       var firstRun = !storedWs && !incoming;
@@ -2969,6 +3399,7 @@
       startSync();
       if (incoming) handleIncomingWs(incoming);
       else if (firstRun || needsSetup()) welcome();
+      if (incomingPriv) handleIncomingPriv(incomingPriv);
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js');
