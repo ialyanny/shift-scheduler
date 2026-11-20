@@ -3156,12 +3156,17 @@
         var at = new Date(payY, payM - 1, 1);
         var ay = at.getFullYear(), am = at.getMonth();
         var dim = new Date(ay, am + 1, 0).getDate();
-        var c = { ay: ay, am: am, worked: 0, dayN: 0, nightN: 0, holWorked: 0, extraOt: 0, offOt: 0, holOt: 0, typhoonOt: 0 };
+        var c = { ay: ay, am: am, worked: 0, dayN: 0, nightN: 0, holWorked: 0, extraOt: 0, offOt: 0, holOt: 0, typhoonOt: 0, scheduled: 0, leaveDays: 0 };
         for (var d = 1; d <= dim; d++) {
           var base = baseShift(u, person, ay, am, d);
           var s = effShift(u, person, ay, am, d);
           var e = eventOrAuto(u, person, ay, am, d);
           var hol = isNatHoliday(ay, am, d);
+          if (base === 'day' || base === 'night') {
+            c.scheduled++;
+            // 整天請假＝當天沒上班：不算輪班津貼、環境津貼、平日加班
+            if (e && e.type === 'leave' && Number(e.days) >= 1) c.leaveDays++;
+          }
           if (e && e.type === 'ot' && e.kind === TYPHOON) {
             // 颱風天上班：當天改為休假日（不算上班日的津貼），工時另以颱風加班倍率計
             c.typhoonOt += Number(e.hours || 0);
@@ -3189,9 +3194,11 @@
         add('底薪', n('base'));
         add('認證津貼', n('cert'));
         add('職務津貼', n('duty'));
-        add('輪班津貼', shiftAllow, '日班 ' + c.dayN + ' 天、夜班 ' + c.nightN + ' 天');
-        add('環境津貼', env, '上班 ' + c.worked + ' 天');
-        add('平日加班費', otHours * W, fmtNum(otHours) + ' 小時');
+        var leaveNote = c.leaveDays ? '（請假 ' + c.leaveDays + ' 天不計）' : '';
+        add('輪班津貼', shiftAllow, '日班 ' + c.dayN + ' 天 × ' + fmtNum(n('dayAllow')) + '、夜班 ' + c.nightN + ' 天 × ' + fmtNum(n('nightAllow')) + leaveNote);
+        add('環境津貼', env, '實際上班 ' + c.worked + ' 天 × ' + fmtNum(n('envAllow')) + leaveNote);
+        add('平日加班費', otHours * W, '實際上班 ' + c.worked + ' 天 × ' + fmtNum(n('dailyOt')) + ' 小時' +
+          (c.extraOt ? '＋另外加班 ' + fmtNum(c.extraOt) + ' 小時' : '') + leaveNote);
         add('輪休日加班', c.offOt * W, fmtNum(c.offOt) + ' 小時');
         add('排班國假加班', c.holWorked * n('shiftHours') * V, c.holWorked + ' 天 × ' + fmtNum(n('shiftHours')) + ' 小時');
         add('國假加班費', c.holOt * V * n('holRate'), fmtNum(c.holOt) + ' 小時');
@@ -3230,6 +3237,12 @@
           var attStart = new Date(r.c.ay, r.c.am, 1), attEnd = new Date(r.c.ay, r.c.am + 1, 0);
           if (attStart > today0) html += '<div class="sal-proj">🔮 推算：' + (r.c.am + 1) + ' 月還沒開始上班，金額依排班推算；之後登記的請假、加班會自動更新。</div>';
           else if (attEnd >= today0) html += '<div class="sal-proj">🔮 推算：' + (r.c.am + 1) + ' 月出勤還沒結束，剩下的日子依排班推算；之後登記的請假、加班會自動更新。</div>';
+          html += '<p class="sal-sub">' + (r.c.am + 1) + ' 月排班 <b>' + r.c.scheduled + '</b> 天，請假 <b>' + r.c.leaveDays + '</b> 天，實際上班 <b>' + r.c.worked + '</b> 天' +
+            (r.c.typhoonOt ? '（另有颱風天上班 ' + fmtNum(r.c.typhoonOt) + ' 小時另計）' : '') + '。</p>';
+          // 發薪月本身的請假，要到下個月薪資才會扣津貼
+          var thisMonthLeave = 0, dimP = new Date(payY, payM + 1, 0).getDate(), pp = cfg.person === 'p2' ? 'p2' : 'p1';
+          for (var dd = 1; dd <= dimP; dd++) { var ee = eventOf(u, pp, payY, payM, dd); if (ee && ee.type === 'leave') thisMonthLeave++; }
+          if (thisMonthLeave) html += '<p class="sal-sub">💡 ' + (payM + 1) + ' 月請的 ' + thisMonthLeave + ' 天假，會算在下個月（' + (payM === 11 ? 1 : payM + 2) + ' 月）的薪資。</p>';
           if (!r.fixed) html += '<div class="sal-warn">請先到「⚙️ 薪資設定」填寫底薪等金額。</div>';
           html += '<table class="sal-table">' + r.items.map(function (x) {
             return '<tr class="' + (x.amount < 0 ? 'neg' : '') + '"><td>' + escHtml(x.label) + (x.note ? '<div class="note">' + escHtml(x.note) + '</div>' : '') +
