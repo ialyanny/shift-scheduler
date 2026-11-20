@@ -1356,6 +1356,16 @@
           flex: q.flex === undefined || q.flex === null ? (corningTeamOf(u[person]) ? 4 : 0) : Number(q.flex)
         };
       }
+      // 彈性休只有康寧員工有；非康寧的人若之前已登記過彈性休或設過額度，仍照常顯示，避免資料看不到
+      function hasFlex(u, person, year) {
+        if (corningTeamOf(u[person])) return true;
+        var q = (((u.quota || {})[person]) || {})[String(year)] || {};
+        if (Number(q.flex) > 0) return true;
+        return Object.keys(u.events || {}).some(function (k) {
+          var e = u.events[k];
+          return k.indexOf(person + '|') === 0 && e.type === 'leave' && e.kind === '彈性休';
+        });
+      }
       function usageOf(u, person, year, month) {
         var r = { leave: {}, otYear: 0, otYearCount: 0, otMonth: 0, otMonthCount: 0, list: [] };
         Object.keys(u.events || {}).forEach(function (k) {
@@ -2162,7 +2172,8 @@
         if (type === 'leave') {
           var kind0 = cur0 ? cur0.kind : '特休';
           var half0 = cur0 && Number(cur0.days) < 1;
-          html += '<div class="ev-row">假別 <select class="ev-kind">' + LEAVE_KINDS.map(function (k) {
+          var flexOk = hasFlex(u, person, y) || kind0 === '彈性休';
+          html += '<div class="ev-row">假別 <select class="ev-kind">' + LEAVE_KINDS.filter(function (k) { return k !== '彈性休' || flexOk; }).map(function (k) {
             return '<option' + (k === kind0 ? ' selected' : '') + '>' + k + '</option>';
           }).join('') + '</select></div>' +
             '<div class="ev-row"><label class="radio"><input type="radio" name="evDays" value="1"' + (half0 ? '' : ' checked') + '> 1 天</label>' +
@@ -2247,7 +2258,9 @@
           var team = corningTeamOf(p);
           html += '<div class="leave-person"><h3><span class="dot ' + (k === 'p1' ? 'dot-me' : 'dot-bk') + '" style="width:10px;height:10px;border-radius:50%;display:inline-block"></span>' +
             escHtml(p.name || '') + (team ? ' <span class="team-tag">康寧 ' + team + ' 班</span>' : '') + '</h3>';
+          var showFlex = hasFlex(u, k, year);
           QUOTA_KINDS.forEach(function (qk) {
+            if (qk[1] === 'flex' && !showFlex) return;
             var total = q[qk[1]];
             var used = us.leave[qk[0]] || 0;
             var left = total - used;
