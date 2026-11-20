@@ -1111,6 +1111,11 @@
       var sb = null;
       var syncTimer = 0;
       var lastLocalSave = 0;
+      var inflight = 0;          // 進行中的雲端寫入數；> 0 時不套用雲端資料，避免舊資料蓋回來
+      var pushing = false;
+      // 上傳失敗（離線、斷線）時記下來，下次連上時以本機資料補傳，避免被雲端舊資料覆蓋
+      var PENDING_PREFIX = 'shift_ws_pending_v1:';
+      var pending = { dirty: false, dels: [] };
 
       // 康寧輪班規則：28 天一循環，A～D 四班規則相同、起始日錯開（依 2027 公司班表核對）
       var CORNING_PATTERN = '2220022000110011100110002200';
@@ -1410,6 +1415,7 @@
           }
           if (c && c.profiles) { profiles = c.profiles; unsavedDefault = !!c.unsavedDefault; }
         } catch (e) {}
+        pending = readPending(id);
         try { viewPrefs = JSON.parse(lsGet(VIEW_KEY) || '{}') || {}; } catch (e) { viewPrefs = {}; }
         currentId = lsGet(CURRENT_KEY);
         ensureCurrent();
@@ -1483,13 +1489,15 @@
 
       function applyData(d) {
         if (d.ws !== wsId) return;
-        // 丟棄在本地最後一次儲存之前就發出的請求回應，避免蓋掉剛存好的資料
-        if (d.startedAt < lastLocalSave) return;
+        // 還有寫入進行中，或請求在本地最後一次寫入完成前就發出 → 丟棄，避免蓋掉剛存好的資料
+        if (inflight > 0 || d.startedAt < lastLocalSave) return;
         if (!d.profiles.length) {
           // 雲端還沒有這個空間的資料 → 把本機資料上傳（還沒填完歡迎畫面就先不傳，避免留下空白資料）
           if (!needsSetup()) pushAll();
           return;
         }
+        // 本機有上傳失敗的修改 → 先以本機為準補傳，下一次同步再合併雲端資料
+        if (pending.dirty) { pushAll(true); return; }
         // 有視窗開著（正在請假、改名…）時先不更新，等下一次同步
         if ($('modalContainer').firstChild) return;
         var byId = {};
@@ -1511,81 +1519,136 @@
         refreshUI();
       }
 
-      function syncFail(res) {
-        if (res && res.error) showToast('同步失敗：' + (res.error.message || ''));
+      function readPending(ws) {
+        try {
+          var p = JSON.parse(lsGet(PENDING_PREFIX + ws) || 'null');
+          if (p && typeof p === 'object') return { dirty: !!p.dirty, dels: Array.isArray(p.dels) ? p.dels : [] };
+        } catch (e) {}
+        return { dirty: false, dels: [] };
       }
 
-      function pushAll() {
-        if (!sb) return;
+      // 記下上傳失敗（del：失敗的刪除動作，補傳時要重做）；forWs 可能已不是目前的空間
+      function markDirty(forWs, del) {
+        var p = forWs === wsId ? pending : readPending(forWs);
+        p.dirty = true;
+        if (del) p.dels.push(del);
+        lsSet(PENDING_PREFIX + forWs, JSON.stringify(p));
+      }
+
+      function delQuery(del) {
+        var q = sb.from(del.table).delete().eq('ws', wsId);
+        Object.keys(del.match).forEach(function (k) { q = q.eq(k, del.match[k]); });
+        return q;
+      }
+
+      // 執行一次雲端寫入：期間暫停套用雲端資料；失敗就記下來，連上網路後自動補傳
+      function cloudWrite(q, del, quiet) {
+        var forWs = wsId;
+        inflight++;
+        lastLocalSave = Date.now();
+        return Promise.resolve(q).then(function (res) {
+          if (res && res.error) throw res.error;
+        }).then(function () {
+          inflight--; lastLocalSave = Date.now();
+          return true;
+        }, function (err) {
+          inflight--; lastLocalSave = Date.now();
+          markDirty(forWs, del);
+          if (!quiet) showToast('同步失敗，資料已存在這台裝置，連上網路後會自動補傳' + (err && err.message ? '（' + err.message + '）' : ''));
+          return false;
+        });
+      }
+
+      // 雲端還沒有資料、或之前上傳失敗時：先重做離線時的刪除，再把本機全部資料上傳
+      function pushAll(quiet) {
+        if (!sb || pushing) return;
+        pushing = true;
         unsavedDefault = false;
         saveLocal();
-        lastLocalSave = Date.now();
-        sb.from('shift_profiles').upsert(profiles.map(rowFromProfile), { onConflict: 'ws,id' }).then(function (res) {
-          syncFail(res);
-          var rows = [];
-          profiles.forEach(function (p) {
-            Object.keys(p.notes || {}).forEach(function (k) {
-              rows.push({ ws: wsId, profile_id: p.id, date_key: k, note: p.notes[k], updated_at: Date.now() });
-            });
+        var dels = pending.dels.slice();
+        pending = { dirty: false, dels: [] };
+        lsSet(PENDING_PREFIX + wsId, JSON.stringify(pending));
+        var now = Date.now();
+        var noteRows = [], evRows = [];
+        profiles.forEach(function (p) {
+          Object.keys(p.notes || {}).forEach(function (k) {
+            noteRows.push({ ws: wsId, profile_id: p.id, date_key: k, note: p.notes[k], updated_at: now });
           });
-          if (rows.length) sb.from('shift_ws_notes').upsert(rows, { onConflict: 'ws,profile_id,date_key' }).then(syncFail);
-          var evRows = [];
-          profiles.forEach(function (p) {
-            Object.keys(p.events || {}).forEach(function (k) {
-              var sp = k.split('|'), e = normEvent(p.events[k]);
-              evRows.push({ ws: wsId, profile_id: p.id, person: sp[0], date_key: sp[1], type: e.type, kind: e.kind, days: e.days, shift: e.shift, hours: e.hours, updated_at: Date.now() });
-            });
+          Object.keys(p.events || {}).forEach(function (k) {
+            var sp = k.split('|'), e = normEvent(p.events[k]);
+            evRows.push({ ws: wsId, profile_id: p.id, person: sp[0], date_key: sp[1], type: e.type, kind: e.kind, days: e.days, shift: e.shift, hours: e.hours, updated_at: now });
           });
-          if (evRows.length) sb.from('shift_ws_events').upsert(evRows, { onConflict: 'ws,profile_id,person,date_key' }).then(syncFail);
-        }).catch(function () { showToast('同步失敗'); });
+        });
+        var steps = dels.map(function (del) { return function () { return cloudWrite(delQuery(del), del, true); }; });
+        steps.push(function () { return cloudWrite(sb.from('shift_profiles').upsert(profiles.map(rowFromProfile), { onConflict: 'ws,id' }), null, true); });
+        if (noteRows.length) steps.push(function () { return cloudWrite(sb.from('shift_ws_notes').upsert(noteRows, { onConflict: 'ws,profile_id,date_key' }), null, true); });
+        if (evRows.length) steps.push(function () { return cloudWrite(sb.from('shift_ws_events').upsert(evRows, { onConflict: 'ws,profile_id,person,date_key' }), null, true); });
+        // 依序執行（同一天先刪後建時，順序很重要）
+        var allOk = true;
+        steps.reduce(function (chain, step) {
+          return chain.then(function () { return step().then(function (ok) { if (!ok) allOk = false; }); });
+        }, Promise.resolve()).then(function () {
+          pushing = false;
+          if (!allOk && !quiet) showToast('同步失敗，連上網路後會自動補傳');
+        });
       }
 
       function firstPush() {
         fetchAll().then(applyData).catch(function () { showToast('同步失敗，連上網路後會再試一次'); });
       }
 
+      // 還沒連上雲端（例如雲端程式庫載入失敗）時，也先記下來，之後補傳
+      function cannotSync(del) {
+        markDirty(wsId, del);
+      }
+
       function persistProfile(p) {
         lastLocalSave = Date.now();
-        if (!sb) return;
+        if (!sb) { cannotSync(null); return; }
         if (unsavedDefault) { firstPush(); return; }
-        sb.from('shift_profiles').upsert([rowFromProfile(p)], { onConflict: 'ws,id' })
-          .then(syncFail).catch(function () { showToast('同步失敗'); });
+        cloudWrite(sb.from('shift_profiles').upsert([rowFromProfile(p)], { onConflict: 'ws,id' }));
       }
 
       function persistNote(profileId, dk, val) {
         lastLocalSave = Date.now();
-        if (!sb) return;
+        var del = val ? null : { table: 'shift_ws_notes', match: { profile_id: profileId, date_key: dk } };
+        if (!sb) { cannotSync(del); return; }
         if (unsavedDefault) { firstPush(); return; }
-        var q = val
+        cloudWrite(val
           ? sb.from('shift_ws_notes').upsert([{ ws: wsId, profile_id: profileId, date_key: dk, note: val, updated_at: Date.now() }], { onConflict: 'ws,profile_id,date_key' })
-          : sb.from('shift_ws_notes').delete().eq('ws', wsId).eq('profile_id', profileId).eq('date_key', dk);
-        q.then(function (res) { if (res && res.error) showToast('備註同步失敗'); })
-          .catch(function () { showToast('備註同步失敗'); });
+          : delQuery(del), del);
       }
 
       function persistEvent(profileId, person, dk, ev) {
         lastLocalSave = Date.now();
-        if (!sb) return;
+        var del = ev ? null : { table: 'shift_ws_events', match: { profile_id: profileId, person: person, date_key: dk } };
+        if (!sb) { cannotSync(del); return; }
         if (unsavedDefault) { firstPush(); return; }
-        var q;
         if (ev) {
           var e = normEvent(ev);
-          q = sb.from('shift_ws_events').upsert([{ ws: wsId, profile_id: profileId, person: person, date_key: dk, type: e.type, kind: e.kind, days: e.days, shift: e.shift, hours: e.hours, updated_at: Date.now() }], { onConflict: 'ws,profile_id,person,date_key' });
+          cloudWrite(sb.from('shift_ws_events').upsert([{ ws: wsId, profile_id: profileId, person: person, date_key: dk, type: e.type, kind: e.kind, days: e.days, shift: e.shift, hours: e.hours, updated_at: Date.now() }], { onConflict: 'ws,profile_id,person,date_key' }));
         } else {
-          q = sb.from('shift_ws_events').delete().eq('ws', wsId).eq('profile_id', profileId).eq('person', person).eq('date_key', dk);
+          cloudWrite(delQuery(del), del);
         }
-        q.then(function (res) { if (res && res.error) showToast('同步失敗：' + (res.error.message || '')); })
-          .catch(function () { showToast('同步失敗'); });
       }
 
       function removeProfileCloud(profileId) {
         lastLocalSave = Date.now();
-        if (!sb) return;
-        sb.from('shift_ws_events').delete().eq('ws', wsId).eq('profile_id', profileId).then(function () {
-          return sb.from('shift_ws_notes').delete().eq('ws', wsId).eq('profile_id', profileId);
-        }).then(function () {
-          return sb.from('shift_profiles').delete().eq('ws', wsId).eq('id', profileId);
-        }).then(syncFail).catch(function () { showToast('同步失敗'); });
+        // 先刪使用者本身（刪掉後其餘備註／紀錄就不會再被同步回來），再清掉它的備註與紀錄
+        var dels = [
+          { table: 'shift_profiles', match: { id: profileId } },
+          { table: 'shift_ws_notes', match: { profile_id: profileId } },
+          { table: 'shift_ws_events', match: { profile_id: profileId } }
+        ];
+        if (!sb) { dels.forEach(cannotSync); return; }
+        var warned = false;
+        dels.reduce(function (chain, del) {
+          return chain.then(function () {
+            return cloudWrite(delQuery(del), del, true).then(function (ok) {
+              if (!ok && !warned) { warned = true; showToast('同步失敗，連上網路後會自動補傳刪除'); }
+            });
+          });
+        }, Promise.resolve());
       }
 
       function refreshQuiet() {
@@ -1608,6 +1671,8 @@
         document.addEventListener('visibilitychange', function () {
           if (!document.hidden) refreshQuiet();
         });
+        // 網路恢復時立刻同步（補傳離線時的修改）
+        window.addEventListener('online', refreshQuiet);
         refreshQuiet();
       }
 
@@ -1746,6 +1811,7 @@
         var p1OffCount = 0, p2OffCount = 0, bothOffCount = 0, sportCount = 0;
         var act = actOf(u);
         var hasCorning = !!(corningTeamOf(p1) || corningTeamOf(p2));
+        var mob = isMobile();
 
         for (var i = 0; i < totalCells; i++) {
           if (i % 7 === 0) html += '<tr>';
@@ -1791,7 +1857,6 @@
           if (!isOther && vm === 'p2' && p2Shift === 'off') cellClass += ' highlight-cell';
 
           var badges = '';
-          var mob = isMobile();
 
           if (!isOther) {
             if (vm !== 'p2' && p1Shift) badges += personBadge(p1.name, '我', p1Shift, ev1, mob);
@@ -1806,7 +1871,7 @@
               badges += evTags;
               [[ev1, p1.name, '我'], [ev2, p2.name, '伴']].forEach(function (x) {
                 if (x[0] && x[0].type === 'leave' && Number(x[0].days) >= 1) {
-                  badges += '<div class="ev-tag">' + escHtml((mob ? personShort(x[1], x[2]) + LEAVE_SHORT[x[0].kind] : x[1] + ' ' + x[0].kind)) + '</div>';
+                  badges += '<div class="ev-tag">' + escHtml((mob ? personShort(x[1], x[2]) + (LEAVE_SHORT[x[0].kind] || '假') : x[1] + ' ' + x[0].kind)) + '</div>';
                 }
               });
               if (act.on) {
@@ -1850,6 +1915,7 @@
         }
 
         $('calendarBody').innerHTML = html;
+        // 點日期的事件在啟動時用事件委派綁一次（不再每次重畫都綁 35～42 個）
 
         var summaryHtml = '';
         if (vm === 'both') {
@@ -1867,19 +1933,18 @@
         }
         $('summaryBox').innerHTML = summaryHtml;
         renderLeaveCard();
-
-        $('calendarBody').querySelectorAll('td[data-date]').forEach(function(td) {
-          td.addEventListener('click', function() {
-            openNoteModal(td.dataset.date);
-          });
-        });
       }
+
+      $('calendarBody').addEventListener('click', function(e) {
+        var td = e.target.closest ? e.target.closest('td[data-date]') : null;
+        if (td) openNoteModal(td.dataset.date);
+      });
 
       function personBadge(name, fallback, shift, ev, mob) {
         var short = escHtml(personShort(name, fallback));
         if (ev && ev.type === 'leave' && Number(ev.days) >= 1 && shift === 'off') {
           return '<div class="shift-badge leave" title="' + escHtml(name + ' ' + ev.kind) + '">' +
-            (mob ? short + LEAVE_SHORT[ev.kind] : escHtml(name) + ': ' + escHtml(ev.kind)) + '</div>';
+            (mob ? short + (LEAVE_SHORT[ev.kind] || '假') : escHtml(name) + ': ' + escHtml(ev.kind)) + '</div>';
         }
         if (ev && ev.type === 'ot' && ev.shift) {
           return '<div class="shift-badge ' + shift + ' ot" title="' + escHtml(name + ' 加班 ' + fmtNum(ev.hours) + ' 小時') + '">' +
@@ -1896,7 +1961,7 @@
         var shiftChanged = ev.type === 'ot' && ev.shift;
         var who = mob ? personShort(name, fallback) : name + ' ';
         var t;
-        if (ev.type === 'leave') t = (full ? '' : '½') + (mob ? LEAVE_SHORT[ev.kind] : ev.kind);
+        if (ev.type === 'leave') t = (full ? '' : '½') + (mob ? (LEAVE_SHORT[ev.kind] || '假') : ev.kind);
         else t = '+' + fmtNum(ev.hours) + 'h';
         if (full || shiftChanged) return '';
         return '<div class="ev-tag" title="' + escHtml(name + ' ' + evText(ev, true)) + '">' + escHtml(who + t) + '</div>';
@@ -1918,8 +1983,13 @@
         var p1Shift = effShift(u, 'p1', y, m, d);
         var p2Shift = effShift(u, 'p2', y, m, d);
 
-        var shiftInfo = escHtml(u.p1.name) + ': ' + shiftLabel(p1Shift) + ' ｜ ' + escHtml(u.p2.name) + ': ' + shiftLabel(p2Shift);
-        if (p1Shift === 'off' && p2Shift === 'off') {
+        // 只列出有班表、且目前顯示中的人（避免出現「伴侶: 」空白）
+        var vm = effView(u);
+        var infoParts = [];
+        if (u.p1.pattern && vm !== 'p2') infoParts.push(escHtml(u.p1.name) + ': ' + (shiftLabel(p1Shift) || '—'));
+        if (u.p2.pattern && vm !== 'p1') infoParts.push(escHtml(u.p2.name) + ': ' + (shiftLabel(p2Shift) || '—'));
+        var shiftInfo = infoParts.join(' ｜ ') || '尚未設定輪班規則';
+        if (vm === 'both' && p1Shift === 'off' && p2Shift === 'off') {
           shiftInfo += '  ★ 共同休假';
         }
 
@@ -2311,6 +2381,7 @@
         var MONTH_ICON = ['🎍', '🧧', '🌸', '🌷', '🌿', '🌊', '🍉', '🌻', '🎑', '🍁', '🍂', '🎄'];
         function runIcon(n) { return n >= 3 ? '🏖️' : n === 2 ? '🌴' : '☀️'; }
         function buildShareText() {
+          if (!lastFrom || !lastTo) return '請先選擇查詢區間';
           var who = $('fdWho').value;
           var markerOnly = who === 'both' && act.on && $('fdMarker').checked;
           var SEP = '━━━━━━━━━━━━';
@@ -2541,6 +2612,16 @@
       });
 
       document.addEventListener('keydown', function(e) {
+        // Esc 關閉視窗（歡迎畫面等必填視窗除外）
+        if (e.key === 'Escape') {
+          var ov = $('noteModal');
+          if (ov && !ov.dataset.sticky) closeModal();
+          return;
+        }
+        // 正在輸入文字或有視窗開著時，方向鍵是用來移動游標，不切換月份
+        var t = e.target;
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+        if ($('modalContainer').firstChild) return;
         if (e.key === 'ArrowLeft') {
           $('btnPrev').click();
         } else if (e.key === 'ArrowRight') {
@@ -2623,7 +2704,7 @@
         var btns = (opts.buttons || []).map(function(b, i) {
           return '<button type="button" class="' + (b.cls || '') + '" data-i="' + i + '">' + escHtml(b.label) + '</button>';
         }).join('');
-        $('modalContainer').innerHTML = '<div class="modal-overlay" id="noteModal"><div class="modal">' +
+        $('modalContainer').innerHTML = '<div class="modal-overlay" id="noteModal"' + (opts.sticky ? ' data-sticky="1"' : '') + '><div class="modal">' +
           '<h3>' + escHtml(opts.title) + '</h3>' + (opts.html || '') +
           '<div class="modal-btns">' + btns + '</div></div></div>';
         $('modalContainer').querySelectorAll('.modal-btns button').forEach(function(el) {
@@ -2846,7 +2927,7 @@
       function handleIncomingWs(id) {
         clearHash();
         if (!id || id === wsId) return;
-        var hasData = profiles.some(function(p) { return p.p1.pattern || p.p2.pattern || Object.keys(p.notes || {}).length; });
+        var hasData = profiles.some(function(p) { return p.p1.pattern || p.p2.pattern || Object.keys(p.notes || {}).length || Object.keys(p.events || {}).length; });
         if (unsavedDefault || !hasData) { switchWorkspace(id, '已開啟班表'); return; }
         var oldLink = wsLink(wsId);
         openDialog({

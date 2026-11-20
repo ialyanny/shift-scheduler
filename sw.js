@@ -1,4 +1,4 @@
-const CACHE_NAME = 'shift-scheduler-v14';
+const CACHE_NAME = 'shift-scheduler-v15';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -36,8 +36,11 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const clone = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+          // 只快取成功的回應，避免把 404／錯誤頁存起來，離線時反而顯示錯誤
+          if (res && res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+          }
           return res;
         })
         .catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html')))
