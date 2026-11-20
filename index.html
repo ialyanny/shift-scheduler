@@ -1147,6 +1147,8 @@
       };
       // 康寧彈性假日：2027 公司班表上加框的日期（全年 4 天，可請彈性休）
       var CORNING_FLEX = { '2027-1-2': 1, '2027-3-29': 1, '2027-10-31': 1, '2027-11-12': 1 };
+      // 康寧颱風假：當天改為休假日，排班上班的人照常上班、以颱風加班計（沒有另外登記時自動套用）
+      var CORNING_TYPHOON = { '2026-10-23': '颱風假' };
       function corpEventFor(u, y, m, d) {
         var name = CORNING_EVENTS[y + '-' + (m + 1) + '-' + d];
         if (!name) return '';
@@ -1313,6 +1315,19 @@
       function eventOf(u, person, y, m, d) {
         var n = normDate(y, m, d);
         return ((u && u.events) || {})[evKey(person, n[0] + '-' + (n[1] + 1) + '-' + n[2])] || null;
+      }
+      function autoTyphoon(u, person, y, m, d) {
+        var n = normDate(y, m, d);
+        if (!CORNING_TYPHOON[n[0] + '-' + (n[1] + 1) + '-' + n[2]]) return null;
+        var p = u && u[person];
+        if (!p || !corningTeamOf(p)) return null;
+        var b = getShift(p.pattern, p.startDate, n[0], n[1], n[2]);
+        if (b !== 'day' && b !== 'night') return null;
+        return { type: 'ot', kind: TYPHOON, days: 0, shift: b, hours: 12, auto: true };
+      }
+      // 登記的紀錄，沒有時套用康寧颱風假的自動加班
+      function eventOrAuto(u, person, y, m, d) {
+        return eventOf(u, person, y, m, d) || autoTyphoon(u, person, y, m, d);
       }
       function baseShift(u, person, y, m, d) {
         var p = u[person];
@@ -1864,8 +1879,8 @@
 
           var p1Shift = effShift(u, 'p1', displayYear, displayMonth, displayDay);
           var p2Shift = effShift(u, 'p2', displayYear, displayMonth, displayDay);
-          var ev1 = eventOf(u, 'p1', displayYear, displayMonth, displayDay);
-          var ev2 = eventOf(u, 'p2', displayYear, displayMonth, displayDay);
+          var ev1 = eventOrAuto(u, 'p1', displayYear, displayMonth, displayDay);
+          var ev2 = eventOrAuto(u, 'p2', displayYear, displayMonth, displayDay);
 
           if (!isOther) {
             if (p1Shift === 'off') p1OffCount++;
@@ -1923,6 +1938,9 @@
           var corpName = hasCorning ? (CORNING_EVENTS[dk] || '') : '';
           if (!isOther && corpName) {
             badges += '<div class="corp-icon" title="康寧 ' + escHtml(corpName) + '">🎊 ' + escHtml(corpName) + '</div>';
+          }
+          if (!isOther && hasCorning && CORNING_TYPHOON[dk]) {
+            badges += '<div class="corp-icon" title="康寧颱風假：上班者以 2.5 倍加班計">🌀 ' + (mob ? '颱風' : '颱風假') + '</div>';
           }
           if (!isOther && hasCorning && CORNING_FLEX[dk]) {
             badges += '<div class="corp-icon" title="康寧彈性假日（可請彈性休）">🌿 ' + (mob ? '彈性' : '彈性假日') + '</div>';
@@ -2038,6 +2056,9 @@
         }
         if (CORNING_FLEX[dateKey(y, m, d)] && (corningTeamOf(u.p1) || corningTeamOf(u.p2))) {
           shiftInfo += '<br>🌿 康寧彈性假日（可請彈性休）';
+        }
+        if (CORNING_TYPHOON[dateKey(y, m, d)] && (corningTeamOf(u.p1) || corningTeamOf(u.p2))) {
+          shiftInfo += '<br>🌀 康寧颱風假：排班上班的人自動記為「颱風天上班 12 小時」（2.5 倍）。時數不同請按「加班」修改；沒去上班請登記請假。';
         }
 
         var html = '<div class="modal-overlay" id="noteModal">' +
@@ -3126,7 +3147,7 @@
         for (var d = 1; d <= dim; d++) {
           var base = baseShift(u, person, ay, am, d);
           var s = effShift(u, person, ay, am, d);
-          var e = eventOf(u, person, ay, am, d);
+          var e = eventOrAuto(u, person, ay, am, d);
           var hol = isNatHoliday(ay, am, d);
           if (e && e.type === 'ot' && e.kind === TYPHOON) {
             // 颱風天上班：當天改為休假日（不算上班日的津貼），工時另以颱風加班倍率計
