@@ -1327,7 +1327,14 @@
       }
       // 登記的紀錄，沒有時套用康寧颱風假的自動加班
       function eventOrAuto(u, person, y, m, d) {
-        return eventOf(u, person, y, m, d) || autoTyphoon(u, person, y, m, d);
+        var e = eventOf(u, person, y, m, d);
+        var auto = autoTyphoon(u, person, y, m, d);
+        if (!e) return auto;
+        // 康寧颱風假當天在上班日登記的一般加班，一律當成颱風天加班（另外計算，不併入平日加班）
+        if (auto && e.type === 'ot' && e.kind !== TYPHOON) {
+          return { type: 'ot', kind: TYPHOON, days: 0, shift: auto.shift, hours: Number(e.hours) || auto.hours };
+        }
+        return e;
       }
       function baseShift(u, person, y, m, d) {
         var p = u[person];
@@ -2130,7 +2137,8 @@
           var base = baseShift(u, person, y, m, d);
           var ev = eventOf(u, person, y, m, d);
           var state = '排班：' + (shiftLabel(base) || '—');
-          if (ev) state += '　→　<b>' + escHtml(evText(ev, true)) + '</b>';
+          var shown = eventOrAuto(u, person, y, m, d);
+          if (shown) state += '　→　<b>' + escHtml(evText(shown, true)) + '</b>' + (!ev ? '（颱風假自動計算）' : '');
           var btns = ev
             ? '<button type="button" class="ev-edit" data-person="' + person + '" data-type="' + ev.type + '">修改</button>' +
               '<button type="button" class="ev-del" data-person="' + person + '">取消' + (ev.type === 'leave' ? '請假' : '加班') + '</button>'
